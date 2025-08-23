@@ -3,8 +3,11 @@ import { password } from './custom.validation';
 
 const register = {
   body: Joi.object().keys({
+    name: Joi.string().required(),
+    username: Joi.string().required(),
     email: Joi.string().required().email(),
-    password: Joi.string().required().custom(password)
+    password: Joi.string().required().custom(password),
+    phoneNumber: Joi.string().optional().allow('')
   })
 };
 
@@ -16,15 +19,19 @@ const login = {
 };
 
 const logout = {
-  body: Joi.object().keys({
-    refreshToken: Joi.string().required()
-  })
+  cookies: Joi.object()
+    .keys({
+      refreshToken: Joi.string()
+    })
+    .unknown(true)
 };
 
 const refreshTokens = {
-  body: Joi.object().keys({
-    refreshToken: Joi.string().required()
-  })
+  cookies: Joi.object()
+    .keys({
+      refreshToken: Joi.string().required()
+    })
+    .unknown(true)
 };
 
 const forgotPassword = {

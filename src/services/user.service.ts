@@ -5,6 +5,31 @@ import ApiError from '../utils/ApiError';
 import { encryptPassword } from '../utils/encryption';
 
 /**
+ * Get user by username
+ * @param {string} username
+ * @param {Array<Key>} keys
+ * @returns {Promise<Pick<User, Key> | null>}
+ */
+const getUserByUsername = async <Key extends keyof User>(
+  username: string,
+  keys: Key[] = [
+    'id',
+    'email',
+    'name',
+    'password',
+    'role',
+    'isEmailVerified',
+    'createdAt',
+    'updatedAt'
+  ] as Key[]
+): Promise<Pick<User, Key> | null> => {
+  return prisma.user.findUnique({
+    where: { username },
+    select: keys.reduce((obj, k) => ({ ...obj, [k]: true }), {})
+  }) as Promise<Pick<User, Key> | null>;
+};
+
+/**
  * Create a user
  * @param {Object} userBody
  * @returns {Promise<User>}
@@ -12,16 +37,23 @@ import { encryptPassword } from '../utils/encryption';
 const createUser = async (
   email: string,
   password: string,
-  name?: string,
+  name: string,
+  username: string,
+  phoneNumber?: string,
   role: Role = Role.USER
 ): Promise<User> => {
   if (await getUserByEmail(email)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
   }
+  if (await getUserByUsername(username)) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Username already taken');
+  }
   return prisma.user.create({
     data: {
       email,
       name,
+      username,
+      phoneNumber,
       password: await encryptPassword(password),
       role
     }
@@ -135,8 +167,15 @@ const updateUserById = async <Key extends keyof User>(
   if (!user) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
   }
-  if (updateBody.email && (await getUserByEmail(updateBody.email as string))) {
+  if (
+    updateBody.email &&
+    user.email !== updateBody.email &&
+    (await getUserByEmail(updateBody.email as string))
+  ) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
+  }
+  if (updateBody.username && (await getUserByUsername(updateBody.username as string))) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Username already taken');
   }
   const updatedUser = await prisma.user.update({
     where: { id: user.id },
@@ -165,6 +204,7 @@ export default {
   queryUsers,
   getUserById,
   getUserByEmail,
+  getUserByUsername,
   updateUserById,
   deleteUserById
 };

@@ -8,6 +8,7 @@ const envVarsSchema = Joi.object()
   .keys({
     NODE_ENV: Joi.string().valid('production', 'development', 'test').required(),
     PORT: Joi.number().default(3000),
+    CORS_ORIGIN: Joi.string().required().description('URL for CORS'),
     JWT_SECRET: Joi.string().required().description('JWT secret key'),
     JWT_ACCESS_EXPIRATION_MINUTES: Joi.number()
       .default(30)
@@ -25,7 +26,8 @@ const envVarsSchema = Joi.object()
     SMTP_PORT: Joi.number().description('port to connect to the email server'),
     SMTP_USERNAME: Joi.string().description('username for email server'),
     SMTP_PASSWORD: Joi.string().description('password for email server'),
-    EMAIL_FROM: Joi.string().description('the from field in the emails sent by the app')
+    EMAIL_FROM: Joi.string().description('the from field in the emails sent by the app'),
+    MOCK_EMAIL: Joi.boolean().default(false).description('mock email for development')
   })
   .unknown();
 
@@ -40,6 +42,9 @@ if (error) {
 export default {
   env: envVars.NODE_ENV,
   port: envVars.PORT,
+  cors: {
+    origin: envVars.CORS_ORIGIN
+  },
   jwt: {
     secret: envVars.JWT_SECRET,
     accessExpirationMinutes: envVars.JWT_ACCESS_EXPIRATION_MINUTES,
@@ -56,6 +61,7 @@ export default {
         pass: envVars.SMTP_PASSWORD
       }
     },
-    from: envVars.EMAIL_FROM
+    from: envVars.EMAIL_FROM,
+    mock: envVars.MOCK_EMAIL
   }
 };

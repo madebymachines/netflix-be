@@ -4,6 +4,7 @@ import compression from 'compression';
 import cors from 'cors';
 import passport from 'passport';
 import httpStatus from 'http-status';
+import cookieParser from 'cookie-parser';
 import config from './config/config';
 import morgan from './config/morgan';
 import xss from './middlewares/xss';
@@ -29,6 +30,9 @@ app.use(express.json());
 // parse urlencoded request body
 app.use(express.urlencoded({ extended: true }));
 
+// parse cookies
+app.use(cookieParser());
+
 // sanitize request data
 app.use(xss());
 
@@ -36,8 +40,12 @@ app.use(xss());
 app.use(compression());
 
 // enable cors
-app.use(cors());
-app.options('*', cors());
+const corsOptions = {
+  origin: config.cors.origin,
+  credentials: true
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // jwt authentication
 app.use(passport.initialize());

@@ -22,6 +22,8 @@ const loginUserWithEmailAndPassword = async (
     'id',
     'email',
     'name',
+    'username', // <--- TAMBAHKAN INI
+    'phoneNumber', // <--- DAN INI
     'password',
     'role',
     'isEmailVerified',
@@ -63,7 +65,11 @@ const refreshAuth = async (refreshToken: string): Promise<AuthTokensResponse> =>
     const refreshTokenData = await tokenService.verifyToken(refreshToken, TokenType.REFRESH);
     const { userId } = refreshTokenData;
     await prisma.token.delete({ where: { id: refreshTokenData.id } });
-    return tokenService.generateAuthTokens({ id: userId });
+    const user = await userService.getUserById(userId);
+    if (!user) {
+      throw new ApiError(httpStatus.UNAUTHORIZED, 'User not found');
+    }
+    return tokenService.generateAuthTokens(user);
   } catch (error) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate');
   }

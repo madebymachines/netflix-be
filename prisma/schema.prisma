@@ -13,7 +13,9 @@ datasource db {
 model User {
   id              Int      @id @default(autoincrement())
   email           String   @unique
-  name            String?
+  name            String
+  username        String   @unique
+  phoneNumber     String?
   password        String
   role            Role     @default(USER)
   isEmailVerified Boolean  @default(false)
@@ -24,12 +26,12 @@ model User {
 
 model Token {
   id          Int       @id @default(autoincrement())
-  token       String
+  token       String    @unique
   type        TokenType
   expires     DateTime
   blacklisted Boolean
   createdAt   DateTime  @default(now())
-  user        User      @relation(fields: [userId], references: [id])
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      Int
 }
 

@@ -24,6 +24,10 @@ if (config.env !== 'test') {
  */
 const sendEmail = async (to: string, subject: string, text: string) => {
   const msg = { from: config.email.from, to, subject, text };
+  if (config.email.mock) {
+    logger.info(`MOCK EMAIL: To: ${to}, Subject: ${subject}, Text: ${text}`);
+    return;
+  }
   await transport.sendMail(msg);
 };
 
