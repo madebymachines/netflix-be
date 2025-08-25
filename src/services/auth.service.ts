@@ -1,4 +1,5 @@
 import httpStatus from 'http-status';
+import moment from 'moment';
 import tokenService from './token.service';
 import userService from './user.service';
 import ApiError from '../utils/ApiError';
@@ -101,19 +102,33 @@ const resetPassword = async (resetPasswordToken: string, newPassword: string): P
 
 /**
  * Verify email
- * @param {string} verifyEmailToken
+ * @param {string} email
+ * @param {string} otp
  * @returns {Promise<void>}
  */
-const verifyEmail = async (verifyEmailToken: string): Promise<void> => {
+const verifyEmail = async (email: string, otp: string): Promise<void> => {
   try {
-    const verifyEmailTokenData = await tokenService.verifyToken(
-      verifyEmailToken,
-      TokenType.VERIFY_EMAIL
-    );
-    await prisma.token.deleteMany({
-      where: { userId: verifyEmailTokenData.userId, type: TokenType.VERIFY_EMAIL }
+    const user = await userService.getUserByEmail(email);
+    if (!user) {
+      throw new Error();
+    }
+    const verifyEmailTokenData = await prisma.token.findFirst({
+      where: {
+        userId: user.id,
+        type: TokenType.VERIFY_EMAIL,
+        token: otp,
+        expires: { gt: new Date() }
+      }
     });
-    await userService.updateUserById(verifyEmailTokenData.userId, { isEmailVerified: true });
+
+    if (!verifyEmailTokenData) {
+      throw new Error();
+    }
+
+    await userService.updateUserById(user.id, { isEmailVerified: true });
+    await prisma.token.deleteMany({
+      where: { userId: user.id, type: TokenType.VERIFY_EMAIL }
+    });
   } catch (error) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Email verification failed');
   }

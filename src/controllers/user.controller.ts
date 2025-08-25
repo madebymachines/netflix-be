@@ -3,6 +3,7 @@ import pick from '../utils/pick';
 import ApiError from '../utils/ApiError';
 import catchAsync from '../utils/catchAsync';
 import { userService } from '../services';
+import { User } from '@prisma/client';
 
 const createUser = catchAsync(async (req, res) => {
   const { email, password, name, role } = req.body;
@@ -15,6 +16,17 @@ const getUsers = catchAsync(async (req, res) => {
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
   const result = await userService.queryUsers(filter, options);
   res.send(result);
+});
+
+const getMe = catchAsync(async (req, res) => {
+  // req.user diisi oleh middleware auth dari passport-jwt
+  const user = req.user as User;
+  if (!user) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'User not found or not authenticated');
+  }
+  // Ambil detail pengguna yang lebih lengkap jika diperlukan
+  const userDetails = await userService.getUserById(user.id);
+  res.send(userDetails);
 });
 
 const getUser = catchAsync(async (req, res) => {
@@ -38,6 +50,7 @@ const deleteUser = catchAsync(async (req, res) => {
 export default {
   createUser,
   getUsers,
+  getMe, // Tambahkan fungsi getMe
   getUser,
   updateUser,
   deleteUser

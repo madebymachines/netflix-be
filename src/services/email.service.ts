@@ -55,10 +55,10 @@ If you did not request any password resets, then ignore this email.`;
  */
 const sendVerificationEmail = async (to: string, token: string) => {
   const subject = 'Email Verification';
-  // replace this url with the link to the email verification page of your front-end app
-  const verificationEmailUrl = `http://link-to-app/verify-email?token=${token}`;
   const text = `Dear user,
-To verify your email, click on this link: ${verificationEmailUrl}`;
+Your One-Time Password (OTP) for email verification is: ${token}
+This OTP is valid for ${config.jwt.verifyEmailExpirationMinutes} minutes.
+If you did not request this, please ignore this email.`;
   await sendEmail(to, subject, text);
 };
 

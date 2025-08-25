@@ -246,25 +246,38 @@ export default router;
  * @swagger
  * /auth/verify-email:
  *   post:
- *     summary: verify email
+ *     summary: Verify email using OTP
  *     tags: [Auth]
- *     parameters:
- *       - in: query
- *         name: token
- *         required: true
- *         schema:
- *           type: string
- *         description: The verify email token
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - otp
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: The user's email
+ *               otp:
+ *                 type: string
+ *                 description: The 6-digit OTP sent to the email
+ *             example:
+ *               email: fake@example.com
+ *               otp: "123456"
  *     responses:
  *       "204":
  *         description: No content
  *       "401":
- *         description: verify email failed
+ *         description: Email verification failed due to invalid OTP or email
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
  *             example:
  *               code: 401
- *               message: verify email failed
+ *               message: Email verification failed
  */
