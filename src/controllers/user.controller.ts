@@ -4,11 +4,12 @@ import ApiError from '../utils/ApiError';
 import catchAsync from '../utils/catchAsync';
 import { userService } from '../services';
 import { User } from '@prisma/client';
+import exclude from '../utils/exclude';
 
 const createUser = catchAsync(async (req, res) => {
   const { email, password, name, role } = req.body;
   const user = await userService.createUser(email, password, name, role);
-  res.status(httpStatus.CREATED).send(user);
+  res.status(httpStatus.CREATED).send(exclude(user, ['password']));
 });
 
 const getUsers = catchAsync(async (req, res) => {
