@@ -43,7 +43,7 @@ export default {
   env: envVars.NODE_ENV,
   port: envVars.PORT,
   cors: {
-    origin: envVars.CORS_ORIGIN
+    origin: envVars.CORS_ORIGIN === '*' ? true : envVars.CORS_ORIGIN
   },
   jwt: {
     secret: envVars.JWT_SECRET,
