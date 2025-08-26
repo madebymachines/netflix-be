@@ -1,13 +1,11 @@
 import httpStatus from 'http-status';
-import moment from 'moment';
 import tokenService from './token.service';
 import userService from './user.service';
 import ApiError from '../utils/ApiError';
 import { TokenType, User } from '@prisma/client';
 import prisma from '../client';
-import { encryptPassword, isPasswordMatch } from '../utils/encryption';
+import { isPasswordMatch } from '../utils/encryption';
 import { AuthTokensResponse } from '../types/response';
-import exclude from '../utils/exclude';
 
 /**
  * Login with username and password
@@ -19,7 +17,7 @@ const loginUserWithEmailAndPassword = async (email: string, password: string): P
   const user = await userService.getUserByEmail(email, [
     'id',
     'email',
-    'fullName',
+    'name', // Diubah dari fullName
     'username',
     'phoneNumber',
     'country',
@@ -28,8 +26,8 @@ const loginUserWithEmailAndPassword = async (email: string, password: string): P
     'password',
     'role',
     'emailVerifiedAt',
-    'createdAt', // FIX: Ditambahkan
-    'updatedAt' // FIX: Ditambahkan
+    'createdAt',
+    'updatedAt'
   ]);
   if (!user || !(await isPasswordMatch(password, user.password as string))) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Incorrect email or password');
@@ -37,7 +35,6 @@ const loginUserWithEmailAndPassword = async (email: string, password: string): P
   if (!user.emailVerifiedAt) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Email not verified');
   }
-  // Now, the 'user' object matches the 'User' type completely.
   return user;
 };
 
@@ -96,8 +93,7 @@ const resetPassword = async (resetPasswordToken: string, newPassword: string): P
     if (!user) {
       throw new Error();
     }
-    const encryptedPassword = await encryptPassword(newPassword);
-    await userService.updateUserById(user.id, { password: encryptedPassword });
+    await userService.updateUserById(user.id, { password: newPassword });
     await prisma.token.deleteMany({ where: { userId: user.id, type: TokenType.RESET_PASSWORD } });
   } catch (error) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Password reset failed');

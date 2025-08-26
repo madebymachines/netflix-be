@@ -6,7 +6,7 @@ const createUser = {
   body: Joi.object().keys({
     email: Joi.string().required().email(),
     password: Joi.string().required().custom(password),
-    fullName: Joi.string().required(),
+    name: Joi.string().required(), // Diubah dari fullName
     username: Joi.string().required(),
     phoneNumber: Joi.string().optional(),
     country: Joi.string().optional(),
@@ -16,7 +16,7 @@ const createUser = {
 
 const getUsers = {
   query: Joi.object().keys({
-    fullName: Joi.string(),
+    name: Joi.string(), // Diubah dari fullName
     role: Joi.string(),
     sortBy: Joi.string(),
     limit: Joi.number().integer(),
@@ -38,7 +38,7 @@ const updateUser = {
     .keys({
       email: Joi.string().email(),
       password: Joi.string().custom(password),
-      fullName: Joi.string(),
+      name: Joi.string(), // Diubah dari fullName
       username: Joi.string(),
       phoneNumber: Joi.string().optional().allow(''),
       country: Joi.string().optional().allow(''),
@@ -50,7 +50,7 @@ const updateUser = {
 const updateMe = {
   body: Joi.object()
     .keys({
-      fullName: Joi.string(),
+      name: Joi.string(), // Diubah dari fullName
       phoneNumber: Joi.string().optional().allow('')
     })
     .min(1)

@@ -15,9 +15,9 @@ const getUserByUsername = async <Key extends keyof User>(
   keys: Key[] = [
     'id',
     'email',
-    'fullName',
+    'name', // Diubah dari fullName
     'role',
-    'purchaseStatus', // FIX: Mengganti isPurchaseVerified
+    'purchaseStatus',
     'createdAt',
     'updatedAt'
   ] as Key[]
@@ -28,11 +28,10 @@ const getUserByUsername = async <Key extends keyof User>(
   }) as Promise<Pick<User, Key> | null>;
 };
 
-// ... (createUser tetap sama) ...
 const createUser = async (userBody: {
   email: string;
   password: string;
-  fullName: string;
+  name: string; // Diubah dari fullName
   username: string;
   phoneNumber: string;
   country: string;
@@ -78,9 +77,9 @@ const queryUsers = async <Key extends keyof User>(
   keys: Key[] = [
     'id',
     'email',
-    'fullName',
+    'name', // Diubah dari fullName
     'role',
-    'purchaseStatus', // FIX: Mengganti isPurchaseVerified
+    'purchaseStatus',
     'createdAt',
     'updatedAt'
   ] as Key[]
@@ -110,12 +109,12 @@ const getUserById = async <Key extends keyof User>(
   keys: Key[] = [
     'id',
     'email',
-    'fullName',
+    'name', // Diubah dari fullName
     'username',
     'phoneNumber',
     'profilePictureUrl',
     'country',
-    'purchaseStatus', // FIX: Mengganti isPurchaseVerified
+    'purchaseStatus',
     'role'
   ] as Key[]
 ): Promise<Pick<User, Key> | null> => {
@@ -125,13 +124,12 @@ const getUserById = async <Key extends keyof User>(
   }) as Promise<Pick<User, Key> | null>;
 };
 
-// ... (sisa file tetap sama, hanya select yang diubah)
 const getUserByEmail = async <Key extends keyof User>(
   email: string,
   keys: Key[] = [
     'id',
     'email',
-    'fullName',
+    'name', // Diubah dari fullName
     'password',
     'role',
     'emailVerifiedAt',
@@ -148,7 +146,7 @@ const getUserByEmail = async <Key extends keyof User>(
 const updateUserById = async <Key extends keyof User>(
   userId: number,
   updateBody: Prisma.UserUpdateInput,
-  keys: Key[] = ['id', 'email', 'fullName', 'username', 'phoneNumber', 'role'] as Key[]
+  keys: Key[] = ['id', 'email', 'name', 'username', 'phoneNumber', 'role'] as Key[] // Diubah dari fullName
 ): Promise<Pick<User, Key> | null> => {
   const user = await getUserById(userId, ['id', 'email', 'username']);
   if (!user) {
@@ -182,7 +180,7 @@ const deleteUserById = async (userId: number): Promise<User> => {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
   }
   await prisma.user.delete({ where: { id: user.id } });
-  return user;
+  return user as User;
 };
 
 export default {

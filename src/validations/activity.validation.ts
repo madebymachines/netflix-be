@@ -3,9 +3,7 @@ import Joi from 'joi';
 const saveActivity = {
   body: Joi.object().keys({
     eventType: Joi.string().valid('INDIVIDUAL', 'GROUP').required(),
-    reps: Joi.number().integer().min(0).required(),
-    calories: Joi.number().min(0).required(),
-    description: Joi.string().required()
+    pointsEarn: Joi.number().integer().min(0).required()
   })
 };
 

@@ -1,7 +1,7 @@
 import prisma from '../client';
 import { Prisma } from '@prisma/client';
 
-type Timespan = 'alltime' | 'weekly' | 'streak';
+type Timespan = 'alltime' | 'streak'; // 'weekly' dihapus
 
 /**
  * Mendapatkan data leaderboard publik.
@@ -22,9 +22,6 @@ const getPublicLeaderboard = async (options: {
   switch (timespan) {
     case 'streak':
       orderBy = { topStreak: 'desc' };
-      break;
-    case 'weekly':
-      orderBy = { weeklyPoints: 'desc' };
       break;
     default: // alltime
       orderBy = { totalPoints: 'desc' };
@@ -62,15 +59,12 @@ const getPublicLeaderboard = async (options: {
       };
     }
 
-    // FIX: Konversi nilai Decimal ke number sebelum dikirim
-    const points = timespan === 'weekly' ? user.stats?.weeklyPoints : user.stats?.totalPoints;
-
+    // 'alltime'
     return {
       rank,
       username: user.username,
       profilePictureUrl: user.profilePictureUrl,
-      points: points ? parseFloat(points.toString()) : 0,
-      reps: user.stats?.totalReps ? user.stats.totalReps.toString() : '0'
+      points: user.stats?.totalPoints || 0
     };
   });
 
@@ -105,7 +99,6 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
       username: user?.username || 'N/A',
       profilePictureUrl: user?.profilePictureUrl || null,
       points: 0,
-      reps: '0',
       streak: 0
     };
   }
@@ -125,18 +118,6 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
         profilePictureUrl: user.profilePictureUrl,
         streak: userStats.topStreak
       };
-    case 'weekly':
-      rank =
-        (await prisma.userStats.count({
-          where: { weeklyPoints: { gt: userStats.weeklyPoints } }
-        })) + 1;
-      return {
-        rank,
-        username: user.username,
-        profilePictureUrl: user.profilePictureUrl,
-        points: parseFloat(userStats.weeklyPoints.toString()), // FIX: Konversi Decimal
-        reps: userStats.totalReps.toString()
-      };
     default: // alltime
       rank =
         (await prisma.userStats.count({
@@ -146,8 +127,7 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
         rank,
         username: user.username,
         profilePictureUrl: user.profilePictureUrl,
-        points: parseFloat(userStats.totalPoints.toString()), // FIX: Konversi Decimal
-        reps: userStats.totalReps.toString()
+        points: userStats.totalPoints
       };
   }
 };

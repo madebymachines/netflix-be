@@ -86,7 +86,7 @@ const verifyEmail = catchAsync(async (req, res) => {
   setAuthCookies(res, tokens);
   const userResponse = {
     id: user.id,
-    fullName: user.fullName,
+    name: user.name, // Diubah dari fullName
     username: user.username,
     email: user.email
   };

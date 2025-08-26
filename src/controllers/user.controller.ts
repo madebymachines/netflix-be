@@ -7,13 +7,12 @@ import { User, PurchaseStatus } from '@prisma/client';
 import exclude from '../utils/exclude';
 import prisma from '../client';
 
-// ... (createUser, getUsers, getMe, updateMe, getUser, updateUser, deleteUser tetap sama)
 const createUser = catchAsync(async (req, res) => {
-  const { email, password, fullName, username, phoneNumber, country } = req.body;
+  const { email, password, name, username, phoneNumber, country } = req.body; // Diubah dari fullName
   const user = await userService.createUser({
     email,
     password,
-    fullName,
+    name, // Diubah dari fullName
     username,
     phoneNumber,
     country
@@ -21,7 +20,7 @@ const createUser = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).send(exclude(user, ['password']));
 });
 const getUsers = catchAsync(async (req, res) => {
-  const filter = pick(req.query, ['fullName', 'role']);
+  const filter = pick(req.query, ['name', 'role']); // Diubah dari fullName
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
   const result = await userService.queryUsers(filter, options);
   res.send(result);
@@ -34,15 +33,13 @@ const getMe = catchAsync(async (req, res) => {
   }
   const userStats = await prisma.userStats.findUnique({ where: { userId: user.id } });
 
+  // Update response Stats sesuai model baru
   const statsResponse = userStats
     ? {
-        totalPoints: parseFloat(userStats.totalPoints.toString()),
-        totalReps: userStats.totalReps.toString(),
+        totalPoints: userStats.totalPoints,
         totalChallenges: userStats.totalChallenges,
         topStreak: userStats.topStreak,
-        currentStreak: userStats.currentStreak,
-        weeklyPoints: parseFloat(userStats.weeklyPoints.toString()),
-        totalCaloriesBurned: parseFloat(userStats.totalCaloriesBurned.toString())
+        currentStreak: userStats.currentStreak
       }
     : null;
 
@@ -74,22 +71,15 @@ const deleteUser = catchAsync(async (req, res) => {
   await userService.deleteUserById(parseInt(req.params.userId));
   res.status(httpStatus.NO_CONTENT).send();
 });
-
-// FIX: Implementasi logika verifikasi pembelian
 const uploadPurchaseVerification = catchAsync(async (req, res) => {
   const user = req.user as User;
-  // Asumsi middleware `multer` atau sejenisnya telah memproses file
-  // dan menyimpan path-nya di `req.file.path`.
-  // Ganti `req.body.receiptImageUrl` jika Anda mengirim URL secara langsung.
-  const receiptImageUrl = req.body.receiptImageUrl; // atau req.file.path
+  const receiptImageUrl = req.body.receiptImageUrl;
 
   if (!receiptImageUrl) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Receipt image URL is required');
   }
 
-  // Gunakan transaksi untuk memastikan kedua operasi berhasil
   await prisma.$transaction(async (tx) => {
-    // 1. Buat record verifikasi baru
     await tx.purchaseVerification.create({
       data: {
         userId: user.id,
@@ -98,7 +88,6 @@ const uploadPurchaseVerification = catchAsync(async (req, res) => {
       }
     });
 
-    // 2. Perbarui status pengguna menjadi PENDING
     await tx.user.update({
       where: { id: user.id },
       data: { purchaseStatus: PurchaseStatus.PENDING }
@@ -110,19 +99,15 @@ const uploadPurchaseVerification = catchAsync(async (req, res) => {
     status: PurchaseStatus.PENDING
   });
 });
-
-// FIX: Implementasi logika untuk mendapatkan status verifikasi
 const getPurchaseVerificationStatus = catchAsync(async (req, res) => {
   const user = req.user as User;
 
-  // Dapatkan status terbaru langsung dari profil pengguna
   const currentUser = await userService.getUserById(user.id, ['purchaseStatus']);
 
   if (!currentUser) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
   }
 
-  // Jika statusnya REJECTED, cari alasan penolakan terakhir
   let latestVerification = null;
   if (currentUser.purchaseStatus === PurchaseStatus.REJECTED) {
     latestVerification = await prisma.purchaseVerification.findFirst({
@@ -130,7 +115,6 @@ const getPurchaseVerificationStatus = catchAsync(async (req, res) => {
       orderBy: { submittedAt: 'desc' }
     });
   } else {
-    // Untuk status lain, cukup ambil data yang relevan
     latestVerification = await prisma.purchaseVerification.findFirst({
       where: { userId: user.id },
       orderBy: { submittedAt: 'desc' }

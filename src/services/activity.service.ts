@@ -1,29 +1,21 @@
 import { Prisma, User } from '@prisma/client';
 import prisma from '../client';
-import { ActivityHistory } from '@prisma/client';
-import ApiError from '../utils/ApiError';
-import httpStatus from 'http-status';
 import moment from 'moment';
 
-// ... (fungsi calculatePoints dan saveActivity tetap sama) ...
-const calculatePoints = (reps: number, calories: number): Prisma.Decimal => {
-  // Contoh sederhana: 1 poin per rep, 2 poin per kalori. Sesuaikan sesuai kebutuhan.
-  const points = reps * 1.0 + calories * 2.0;
-  return new Prisma.Decimal(points.toFixed(3));
-};
-
+/**
+ * Menyimpan aktivitas baru dan memperbarui statistik pengguna.
+ * @param userId - ID pengguna.
+ * @param activityBody - Detail aktivitas.
+ * @returns {Promise<object>}
+ */
 const saveActivity = async (
   userId: number,
   activityBody: {
     eventType: 'INDIVIDUAL' | 'GROUP';
-    reps: number;
-    calories: number;
-    description: string;
+    pointsEarn: number;
   }
 ) => {
-  const { eventType, reps, calories, description } = activityBody;
-  const pointsEarned = calculatePoints(reps, calories);
-  const caloriesBurned = new Prisma.Decimal(calories.toFixed(3));
+  const { eventType, pointsEarn } = activityBody;
 
   return prisma.$transaction(async (tx) => {
     // 1. Dapatkan atau buat UserStats
@@ -37,18 +29,19 @@ const saveActivity = async (
       });
     }
 
-    const today = moment().startOf('day').toDate();
-    const lastActivityDate = userStats.lastActivityDate
-      ? moment(userStats.lastActivityDate).startOf('day').toDate()
-      : null;
+    const today = moment().startOf('day');
+    const lastUpdatedDay = moment(userStats.lastUpdated).startOf('day');
 
     let currentStreak = userStats.currentStreak;
     let topStreak = userStats.topStreak;
     let isTopStreakUpdated = false;
 
     // 2. Logika Streak
-    if (lastActivityDate) {
-      const diffDays = moment(today).diff(moment(lastActivityDate), 'days');
+    // Cek jika ini adalah aktivitas pertama pengguna
+    if (userStats.totalChallenges === 0) {
+      currentStreak = 1;
+    } else {
+      const diffDays = today.diff(lastUpdatedDay, 'days');
       if (diffDays === 1) {
         // Aktivitas hari berikutnya, lanjutkan streak
         currentStreak++;
@@ -56,63 +49,41 @@ const saveActivity = async (
         // Melewatkan satu hari atau lebih, reset streak
         currentStreak = 1;
       }
-      // Jika diffDays === 0, tidak ada perubahan pada streak
-    } else {
-      // Aktivitas pertama
-      currentStreak = 1;
+      // Jika diffDays === 0, berarti aktivitas lain di hari yang sama,
+      // maka currentStreak tidak perlu diubah.
     }
 
+    // Perbarui topStreak jika currentStreak saat ini lebih tinggi
     if (currentStreak > topStreak) {
       topStreak = currentStreak;
       isTopStreakUpdated = true;
     }
 
-    // 3. Logika Reset Poin Mingguan
-    const lastUpdatedWeek = moment(userStats.lastUpdated).isoWeek();
-    const currentWeek = moment().isoWeek();
-    const lastUpdatedYear = moment(userStats.lastUpdated).year();
-    const currentYear = moment().year();
-
-    let weeklyPoints = new Prisma.Decimal(userStats.weeklyPoints);
-    if (currentYear > lastUpdatedYear || currentWeek > lastUpdatedWeek) {
-      // Reset jika sudah minggu baru
-      weeklyPoints = new Prisma.Decimal(0);
-    }
-
-    // 4. Perbarui UserStats
+    // 3. Perbarui UserStats
     const updatedStats = await tx.userStats.update({
       where: { userId },
       data: {
-        totalPoints: { increment: pointsEarned },
-        totalReps: { increment: reps },
-        totalCaloriesBurned: { increment: caloriesBurned },
-        weeklyPoints: weeklyPoints.add(pointsEarned),
+        totalPoints: { increment: pointsEarn },
+        totalChallenges: { increment: 1 },
         currentStreak: currentStreak,
-        topStreak: topStreak,
-        lastActivityDate: today,
-        totalChallenges: { increment: 1 } // Asumsi satu aktivitas adalah satu tantangan
+        topStreak: topStreak
       }
     });
 
-    // 5. Buat entri ActivityHistory
+    // 4. Buat entri ActivityHistory
     await tx.activityHistory.create({
       data: {
         userId,
         eventType,
-        pointsChange: pointsEarned,
-        repsChange: reps,
+        pointsEarn,
         pointsFrom: userStats.totalPoints,
-        pointsTo: updatedStats.totalPoints,
-        repsFrom: userStats.totalReps,
-        repsTo: updatedStats.totalReps,
-        caloriesBurned,
-        description
+        pointsTo: updatedStats.totalPoints
       }
     });
 
     return {
       message: 'Activity saved successfully.',
-      pointsEarned: parseFloat(pointsEarned.toString()),
+      pointsEarned: pointsEarn,
       streakStatus: {
         currentStreak: updatedStats.currentStreak,
         isTopStreakUpdated
@@ -144,18 +115,6 @@ const getActivityHistory = async (userId: number, options: { limit?: number; pag
 
   const totalPages = Math.ceil(totalItems / limit);
 
-  // FIX: Mengonversi BigInt dan Decimal ke tipe yang dapat diserialisasi JSON
-  const serializedHistory = history.map((item) => ({
-    ...item,
-    id: item.id.toString(), // Konversi id (BigInt) ke string
-    pointsChange: parseFloat(item.pointsChange.toString()),
-    pointsFrom: parseFloat(item.pointsFrom.toString()),
-    pointsTo: parseFloat(item.pointsTo.toString()),
-    repsFrom: item.repsFrom.toString(), // Konversi repsFrom (BigInt) ke string
-    repsTo: item.repsTo.toString(), // Konversi repsTo (BigInt) ke string
-    caloriesBurned: item.caloriesBurned ? parseFloat(item.caloriesBurned.toString()) : null
-  }));
-
   return {
     pagination: {
       currentPage: page,
@@ -163,7 +122,7 @@ const getActivityHistory = async (userId: number, options: { limit?: number; pag
       totalItems,
       totalPages
     },
-    history: serializedHistory
+    history: history
   };
 };
 
