@@ -6,10 +6,20 @@ import { userController } from '../../controllers';
 
 const router = express.Router();
 
-// Tambahkan rute GET /me sebelum rute dinamis /:userId
-// Ini akan mengambil data pengguna yang sedang login
-router.get('/me', auth(), userController.getMe);
+// Routes for the currently logged-in user
+router
+  .route('/me')
+  .get(auth(), userController.getMe)
+  .put(auth(), validate(userValidation.updateMe), userController.updateMe);
 
+// Routes for purchase verification
+router.route('/purchase-verification').post(auth(), userController.uploadPurchaseVerification);
+
+router
+  .route('/purchase-verification/status')
+  .get(auth(), userController.getPurchaseVerificationStatus);
+
+// Admin-only routes
 router
   .route('/')
   .post(auth('manageUsers'), validate(userValidation.createUser), userController.createUser)

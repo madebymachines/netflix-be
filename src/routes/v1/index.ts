@@ -2,6 +2,8 @@ import express from 'express';
 import authRoute from './auth.route';
 import userRoute from './user.route';
 import docsRoute from './docs.route';
+import activityRoute from './activity.route'; // New
+import leaderboardRoute from './leaderboard.route'; // New
 import config from '../../config/config';
 
 const router = express.Router();
@@ -12,8 +14,16 @@ const defaultRoutes = [
     route: authRoute
   },
   {
-    path: '/users',
+    path: '/user', // Corrected path from /users to /user to match spec
     route: userRoute
+  },
+  {
+    path: '/activities', // New
+    route: activityRoute
+  },
+  {
+    path: '/leaderboard', // New
+    route: leaderboardRoute
   }
 ];
 

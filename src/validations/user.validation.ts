@@ -6,14 +6,17 @@ const createUser = {
   body: Joi.object().keys({
     email: Joi.string().required().email(),
     password: Joi.string().required().custom(password),
-    name: Joi.string().required(),
+    fullName: Joi.string().required(),
+    username: Joi.string().required(),
+    phoneNumber: Joi.string().optional(),
+    country: Joi.string().optional(),
     role: Joi.string().required().valid(Role.USER, Role.ADMIN)
   })
 };
 
 const getUsers = {
   query: Joi.object().keys({
-    name: Joi.string(),
+    fullName: Joi.string(),
     role: Joi.string(),
     sortBy: Joi.string(),
     limit: Joi.number().integer(),
@@ -35,8 +38,19 @@ const updateUser = {
     .keys({
       email: Joi.string().email(),
       password: Joi.string().custom(password),
-      name: Joi.string(),
+      fullName: Joi.string(),
       username: Joi.string(),
+      phoneNumber: Joi.string().optional().allow(''),
+      country: Joi.string().optional().allow(''),
+      profilePictureUrl: Joi.string().uri().optional().allow('')
+    })
+    .min(1)
+};
+
+const updateMe = {
+  body: Joi.object()
+    .keys({
+      fullName: Joi.string(),
       phoneNumber: Joi.string().optional().allow('')
     })
     .min(1)
@@ -53,5 +67,6 @@ export default {
   getUsers,
   getUser,
   updateUser,
+  updateMe,
   deleteUser
 };

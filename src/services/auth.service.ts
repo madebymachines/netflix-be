@@ -15,26 +15,30 @@ import exclude from '../utils/exclude';
  * @param {string} password
  * @returns {Promise<Omit<User, 'password'>>}
  */
-const loginUserWithEmailAndPassword = async (
-  email: string,
-  password: string
-): Promise<Omit<User, 'password'>> => {
+const loginUserWithEmailAndPassword = async (email: string, password: string): Promise<User> => {
   const user = await userService.getUserByEmail(email, [
     'id',
     'email',
-    'name',
-    'username', // <--- TAMBAHKAN INI
-    'phoneNumber', // <--- DAN INI
+    'fullName',
+    'username',
+    'phoneNumber',
+    'country',
+    'profilePictureUrl',
+    'purchaseStatus',
     'password',
     'role',
-    'isEmailVerified',
-    'createdAt',
-    'updatedAt'
+    'emailVerifiedAt',
+    'createdAt', // FIX: Ditambahkan
+    'updatedAt' // FIX: Ditambahkan
   ]);
   if (!user || !(await isPasswordMatch(password, user.password as string))) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Incorrect email or password');
   }
-  return exclude(user, ['password']);
+  if (!user.emailVerifiedAt) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Email not verified');
+  }
+  // Now, the 'user' object matches the 'User' type completely.
+  return user;
 };
 
 /**
@@ -104,9 +108,9 @@ const resetPassword = async (resetPasswordToken: string, newPassword: string): P
  * Verify email
  * @param {string} email
  * @param {string} otp
- * @returns {Promise<void>}
+ * @returns {Promise<User>}
  */
-const verifyEmail = async (email: string, otp: string): Promise<void> => {
+const verifyEmail = async (email: string, otp: string): Promise<User> => {
   try {
     const user = await userService.getUserByEmail(email);
     if (!user) {
@@ -125,10 +129,13 @@ const verifyEmail = async (email: string, otp: string): Promise<void> => {
       throw new Error();
     }
 
-    await userService.updateUserById(user.id, { isEmailVerified: true });
+    const updatedUser = await userService.updateUserById(user.id, {
+      emailVerifiedAt: new Date()
+    });
     await prisma.token.deleteMany({
       where: { userId: user.id, type: TokenType.VERIFY_EMAIL }
     });
+    return updatedUser as User;
   } catch (error) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Email verification failed');
   }
@@ -136,8 +143,6 @@ const verifyEmail = async (email: string, otp: string): Promise<void> => {
 
 export default {
   loginUserWithEmailAndPassword,
-  isPasswordMatch,
-  encryptPassword,
   logout,
   refreshAuth,
   resetPassword,

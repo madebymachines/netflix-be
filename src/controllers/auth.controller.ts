@@ -28,15 +28,12 @@ const clearAuthCookies = (res: Response) => {
 };
 
 const register = catchAsync(async (req, res) => {
-  const { name, username, email, password, phoneNumber } = req.body;
-  const user = await userService.createUser(email, password, name, username, phoneNumber);
-  const userWithoutPassword = exclude(user, ['password', 'createdAt', 'updatedAt']);
+  const user = await userService.createUser(req.body);
   const verifyEmailToken = await tokenService.generateVerifyEmailToken(user);
   await emailService.sendVerificationEmail(user.email, verifyEmailToken);
-  res.status(httpStatus.CREATED).send({
-    user: userWithoutPassword,
-    message: 'Registration successful. Please check your email to verify your account.'
-  });
+  res
+    .status(httpStatus.CREATED)
+    .send({ message: 'Registration successful. Please check your email for OTP.' });
 });
 
 const login = catchAsync(async (req, res) => {
@@ -44,7 +41,8 @@ const login = catchAsync(async (req, res) => {
   const user = await authService.loginUserWithEmailAndPassword(email, password);
   const tokens = await tokenService.generateAuthTokens(user);
   setAuthCookies(res, tokens);
-  res.send({ user });
+  const userResponse = exclude(user, ['password', 'role']);
+  res.send({ token: tokens.access.token, user: userResponse });
 });
 
 const logout = catchAsync(async (req, res) => {
@@ -83,8 +81,20 @@ const sendVerificationEmail = catchAsync(async (req, res) => {
 
 const verifyEmail = catchAsync(async (req, res) => {
   const { email, otp } = req.body;
-  await authService.verifyEmail(email, otp);
-  res.status(httpStatus.NO_CONTENT).send();
+  const user = await authService.verifyEmail(email, otp);
+  const tokens = await tokenService.generateAuthTokens(user);
+  setAuthCookies(res, tokens);
+  const userResponse = {
+    id: user.id,
+    fullName: user.fullName,
+    username: user.username,
+    email: user.email
+  };
+  res.send({
+    message: 'Email verified successfully.',
+    token: tokens.access.token,
+    user: userResponse
+  });
 });
 
 export default {

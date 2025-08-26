@@ -15,9 +15,9 @@ const getUserByUsername = async <Key extends keyof User>(
   keys: Key[] = [
     'id',
     'email',
-    'name',
+    'fullName',
     'role',
-    'isEmailVerified',
+    'purchaseStatus', // FIX: Mengganti isPurchaseVerified
     'createdAt',
     'updatedAt'
   ] as Key[]
@@ -28,44 +28,43 @@ const getUserByUsername = async <Key extends keyof User>(
   }) as Promise<Pick<User, Key> | null>;
 };
 
-/**
- * Create a user
- * @param {Object} userBody
- * @returns {Promise<User>}
- */
-const createUser = async (
-  email: string,
-  password: string,
-  name: string,
-  username: string,
-  phoneNumber?: string,
-  role: Role = Role.USER
-): Promise<User> => {
-  if (await getUserByEmail(email)) {
+// ... (createUser tetap sama) ...
+const createUser = async (userBody: {
+  email: string;
+  password: string;
+  fullName: string;
+  username: string;
+  phoneNumber: string;
+  country: string;
+}): Promise<User> => {
+  if (await getUserByEmail(userBody.email)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
   }
-  if (await getUserByUsername(username)) {
+  if (await getUserByUsername(userBody.username)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Username already taken');
   }
-  return prisma.user.create({
+  const user = await prisma.user.create({
     data: {
-      email,
-      name,
-      username,
-      phoneNumber,
-      password: await encryptPassword(password),
-      role
+      ...userBody,
+      password: await encryptPassword(userBody.password),
+      role: Role.USER
     }
   });
+
+  // Initialize user stats
+  await prisma.userStats.create({
+    data: {
+      userId: user.id
+    }
+  });
+
+  return user;
 };
 
 /**
  * Query for users
  * @param {Object} filter - Prisma filter
  * @param {Object} options - Query options
- * @param {string} [options.sortBy] - Sort option in the format: sortField:(desc|asc)
- * @param {number} [options.limit] - Maximum number of results per page (default = 10)
- * @param {number} [options.page] - Current page (default = 1)
  * @returns {Promise<QueryResult>}
  */
 const queryUsers = async <Key extends keyof User>(
@@ -79,9 +78,9 @@ const queryUsers = async <Key extends keyof User>(
   keys: Key[] = [
     'id',
     'email',
-    'name',
+    'fullName',
     'role',
-    'isEmailVerified',
+    'purchaseStatus', // FIX: Mengganti isPurchaseVerified
     'createdAt',
     'updatedAt'
   ] as Key[]
@@ -93,7 +92,7 @@ const queryUsers = async <Key extends keyof User>(
   const users = await prisma.user.findMany({
     where: filter,
     select: keys.reduce((obj, k) => ({ ...obj, [k]: true }), {}),
-    skip: page * limit,
+    skip: (page - 1) * limit,
     take: limit,
     orderBy: sortBy ? { [sortBy]: sortType } : undefined
   });
@@ -111,11 +110,13 @@ const getUserById = async <Key extends keyof User>(
   keys: Key[] = [
     'id',
     'email',
-    'name',
-    'role',
-    'isEmailVerified',
-    'createdAt',
-    'updatedAt'
+    'fullName',
+    'username',
+    'phoneNumber',
+    'profilePictureUrl',
+    'country',
+    'purchaseStatus', // FIX: Mengganti isPurchaseVerified
+    'role'
   ] as Key[]
 ): Promise<Pick<User, Key> | null> => {
   return prisma.user.findUnique({
@@ -124,21 +125,16 @@ const getUserById = async <Key extends keyof User>(
   }) as Promise<Pick<User, Key> | null>;
 };
 
-/**
- * Get user by email
- * @param {string} email
- * @param {Array<Key>} keys
- * @returns {Promise<Pick<User, Key> | null>}
- */
+// ... (sisa file tetap sama, hanya select yang diubah)
 const getUserByEmail = async <Key extends keyof User>(
   email: string,
   keys: Key[] = [
     'id',
     'email',
-    'name',
+    'fullName',
     'password',
     'role',
-    'isEmailVerified',
+    'emailVerifiedAt',
     'createdAt',
     'updatedAt'
   ] as Key[]
@@ -149,18 +145,12 @@ const getUserByEmail = async <Key extends keyof User>(
   }) as Promise<Pick<User, Key> | null>;
 };
 
-/**
- * Update user by id
- * @param {ObjectId} userId
- * @param {Object} updateBody
- * @returns {Promise<User>}
- */
 const updateUserById = async <Key extends keyof User>(
   userId: number,
   updateBody: Prisma.UserUpdateInput,
-  keys: Key[] = ['id', 'email', 'name', 'role'] as Key[]
+  keys: Key[] = ['id', 'email', 'fullName', 'username', 'phoneNumber', 'role'] as Key[]
 ): Promise<Pick<User, Key> | null> => {
-  const user = await getUserById(userId, ['id', 'email', 'name']);
+  const user = await getUserById(userId, ['id', 'email', 'username']);
   if (!user) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
   }
@@ -171,7 +161,11 @@ const updateUserById = async <Key extends keyof User>(
   ) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
   }
-  if (updateBody.username && (await getUserByUsername(updateBody.username as string))) {
+  if (
+    updateBody.username &&
+    user.username !== updateBody.username &&
+    (await getUserByUsername(updateBody.username as string))
+  ) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Username already taken');
   }
   const updatedUser = await prisma.user.update({
@@ -182,11 +176,6 @@ const updateUserById = async <Key extends keyof User>(
   return updatedUser as Pick<User, Key> | null;
 };
 
-/**
- * Delete user by id
- * @param {ObjectId} userId
- * @returns {Promise<User>}
- */
 const deleteUserById = async (userId: number): Promise<User> => {
   const user = await getUserById(userId);
   if (!user) {

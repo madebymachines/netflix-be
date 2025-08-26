@@ -11,17 +11,58 @@ datasource db {
 }
 
 model User {
-  id              Int      @id @default(autoincrement())
-  email           String   @unique
-  name            String
-  username        String   @unique
-  phoneNumber     String?
-  password        String
-  role            Role     @default(USER)
-  isEmailVerified Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  Token           Token[]
+  id                    Int                     @id @default(autoincrement())
+  name              String
+  username              String                  @unique
+  email                 String                  @unique
+  password              String
+  phoneNumber           String?
+  profilePictureUrl     String?
+  country               String?
+  // FIX: Mengganti isPurchaseVerified dengan status enum
+  purchaseStatus        PurchaseStatus          @default(NOT_VERIFIED)
+  emailVerifiedAt       DateTime?
+  role                  Role                    @default(USER)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  tokens                Token[]
+  purchaseVerifications PurchaseVerification[]
+  activityHistory       ActivityHistory[]
+  stats                 UserStats?
+}
+
+model PurchaseVerification {
+  id              Int            @id @default(autoincrement())
+  userId          Int
+  receiptImageUrl String
+  // FIX: Menggunakan enum untuk konsistensi
+  status          PurchaseStatus @default(PENDING)
+  rejectionReason String?
+  submittedAt     DateTime       @default(now())
+  reviewedAt      DateTime?
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ActivityHistory {
+  id             Int    @id @default(autoincrement())
+  userId         Int
+  eventType      String // 'INDIVIDUAL', 'GROUP'
+  pointsEarn   Int    
+  pointsFrom     Int    
+  pointsTo       Int    
+  
+  createdAt      DateTime  @default(now())
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserStats {
+  userId              Int       @id
+  totalPoints         Int    @default(0)
+  totalChallenges     Int       @default(0)
+  currentStreak       Int       @default(0)
+  topStreak           Int       @default(0)
+  lastUpdated         DateTime  @updatedAt
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Token {
@@ -33,6 +74,14 @@ model Token {
   createdAt   DateTime  @default(now())
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      Int
+}
+
+// FIX: Menambahkan enum untuk status verifikasi
+enum PurchaseStatus {
+  NOT_VERIFIED
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum Role {
