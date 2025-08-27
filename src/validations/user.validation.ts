@@ -41,19 +41,18 @@ const updateUser = {
       name: Joi.string(), // Diubah dari fullName
       username: Joi.string(),
       phoneNumber: Joi.string().optional().allow(''),
-      country: Joi.string().optional().allow(''),
-      profilePictureUrl: Joi.string().uri().optional().allow('')
+      country: Joi.string().optional().allow('')
+      // profilePictureUrl dihapus karena ditangani melalui unggahan file
     })
     .min(1)
 };
 
 const updateMe = {
-  body: Joi.object()
-    .keys({
-      name: Joi.string(), // Diubah dari fullName
-      phoneNumber: Joi.string().optional().allow('')
-    })
-    .min(1)
+  body: Joi.object().keys({
+    name: Joi.string(), // Diubah dari fullName
+    phoneNumber: Joi.string().optional().allow('')
+  })
+  // Memperbolehkan body kosong jika ada file yang diunggah
 };
 
 const deleteUser = {
@@ -62,11 +61,17 @@ const deleteUser = {
   })
 };
 
+// Validasi baru untuk unggahan verifikasi pembelian
+const uploadPurchaseVerification = {
+  body: Joi.object().keys({}) // Body bisa kosong, validasi ada di file itu sendiri oleh middleware
+};
+
 export default {
   createUser,
   getUsers,
   getUser,
   updateUser,
   updateMe,
-  deleteUser
+  deleteUser,
+  uploadPurchaseVerification // Ekspor validasi baru
 };

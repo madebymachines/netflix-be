@@ -3,23 +3,38 @@ import auth from '../../middlewares/auth';
 import validate from '../../middlewares/validate';
 import { userValidation } from '../../validations';
 import { userController } from '../../controllers';
+import upload from '../../middlewares/upload'; // Impor middleware upload
 
 const router = express.Router();
 
-// Routes for the currently logged-in user
+// Rute untuk pengguna yang sedang login
 router
   .route('/me')
   .get(auth(), userController.getMe)
-  .put(auth(), validate(userValidation.updateMe), userController.updateMe);
+  // Gunakan middleware upload.single('profilePicture')
+  .put(
+    auth(),
+    upload.single('profilePicture'),
+    validate(userValidation.updateMe),
+    userController.updateMe
+  );
 
-// Routes for purchase verification
-router.route('/purchase-verification').post(auth(), userController.uploadPurchaseVerification);
+// Rute untuk verifikasi pembelian
+// Gunakan middleware upload.single('receiptImage')
+router
+  .route('/purchase-verification')
+  .post(
+    auth(),
+    upload.single('receiptImage'),
+    validate(userValidation.uploadPurchaseVerification),
+    userController.uploadPurchaseVerification
+  );
 
 router
   .route('/purchase-verification/status')
   .get(auth(), userController.getPurchaseVerificationStatus);
 
-// Admin-only routes
+// Rute khusus admin
 router
   .route('/')
   .post(auth('manageUsers'), validate(userValidation.createUser), userController.createUser)

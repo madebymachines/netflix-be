@@ -2,10 +2,11 @@ import httpStatus from 'http-status';
 import pick from '../utils/pick';
 import ApiError from '../utils/ApiError';
 import catchAsync from '../utils/catchAsync';
-import { userService } from '../services';
+import { userService, s3Service } from '../services'; // Impor s3Service
 import { User, PurchaseStatus } from '@prisma/client';
 import exclude from '../utils/exclude';
 import prisma from '../client';
+import { Request } from 'express';
 
 const createUser = catchAsync(async (req, res) => {
   const { email, password, name, username, phoneNumber, country } = req.body; // Diubah dari fullName
@@ -48,14 +49,44 @@ const getMe = catchAsync(async (req, res) => {
     stats: statsResponse
   });
 });
-const updateMe = catchAsync(async (req, res) => {
+
+const updateMe = catchAsync(async (req: Request, res) => {
   const user = req.user as User;
-  const updatedUser = await userService.updateUserById(user.id, req.body);
+  const updateBody = req.body;
+  const file = req.file;
+
+  if (Object.keys(updateBody).length === 0 && !file) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Harap berikan konten untuk diperbarui.');
+  }
+
+  if (file) {
+    // Dapatkan data pengguna saat ini untuk menemukan URL gambar profil lama
+    const currentUser = await userService.getUserById(user.id, ['profilePictureUrl']);
+
+    // Hapus gambar profil lama dari S3 jika ada
+    if (currentUser?.profilePictureUrl) {
+      await s3Service.deleteFileByUrl(currentUser.profilePictureUrl);
+    }
+
+    // Unggah gambar profil baru ke S3
+    const newProfilePictureUrl = await s3Service.uploadFile(
+      file.buffer,
+      file.originalname,
+      file.mimetype,
+      'profile-pictures' // Nama folder
+    );
+
+    // Tambahkan URL baru ke updateBody
+    updateBody.profilePictureUrl = newProfilePictureUrl;
+  }
+
+  const updatedUser = await userService.updateUserById(user.id, updateBody);
   res.send({
-    message: 'Profile updated successfully.',
+    message: 'Profil berhasil diperbarui.',
     user: updatedUser
   });
 });
+
 const getUser = catchAsync(async (req, res) => {
   const user = await userService.getUserById(parseInt(req.params.userId));
   if (!user) {
@@ -71,23 +102,60 @@ const deleteUser = catchAsync(async (req, res) => {
   await userService.deleteUserById(parseInt(req.params.userId));
   res.status(httpStatus.NO_CONTENT).send();
 });
-const uploadPurchaseVerification = catchAsync(async (req, res) => {
-  const user = req.user as User;
-  const receiptImageUrl = req.body.receiptImageUrl;
 
-  if (!receiptImageUrl) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Receipt image URL is required');
+const uploadPurchaseVerification = catchAsync(async (req: Request, res) => {
+  const user = req.user as User;
+  const file = req.file;
+
+  if (!file) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Gambar struk diperlukan');
   }
 
+  // Unggah gambar struk baru ke S3
+  const newReceiptImageUrl = await s3Service.uploadFile(
+    file.buffer,
+    file.originalname,
+    file.mimetype,
+    'receipts' // Nama folder
+  );
+
   await prisma.$transaction(async (tx) => {
+    // Temukan verifikasi PENDING atau REJECTED sebelumnya untuk pengguna
+    const oldVerifications = await tx.purchaseVerification.findMany({
+      where: {
+        userId: user.id,
+        status: {
+          in: [PurchaseStatus.PENDING, PurchaseStatus.REJECTED]
+        }
+      }
+    });
+
+    // Hapus gambar struk lama dari S3
+    for (const verification of oldVerifications) {
+      await s3Service.deleteFileByUrl(verification.receiptImageUrl);
+    }
+
+    // Hapus catatan verifikasi lama dari DB
+    if (oldVerifications.length > 0) {
+      await tx.purchaseVerification.deleteMany({
+        where: {
+          id: {
+            in: oldVerifications.map((v) => v.id)
+          }
+        }
+      });
+    }
+
+    // Buat permintaan verifikasi baru
     await tx.purchaseVerification.create({
       data: {
         userId: user.id,
-        receiptImageUrl: receiptImageUrl,
+        receiptImageUrl: newReceiptImageUrl,
         status: PurchaseStatus.PENDING
       }
     });
 
+    // Perbarui status pembelian utama pengguna
     await tx.user.update({
       where: { id: user.id },
       data: { purchaseStatus: PurchaseStatus.PENDING }
@@ -95,10 +163,11 @@ const uploadPurchaseVerification = catchAsync(async (req, res) => {
   });
 
   res.status(httpStatus.ACCEPTED).send({
-    message: 'Receipt uploaded successfully. Awaiting verification.',
+    message: 'Struk berhasil diunggah. Menunggu verifikasi.',
     status: PurchaseStatus.PENDING
   });
 });
+
 const getPurchaseVerificationStatus = catchAsync(async (req, res) => {
   const user = req.user as User;
 
