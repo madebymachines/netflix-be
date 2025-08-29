@@ -9,6 +9,7 @@ const envVarsSchema = Joi.object()
     NODE_ENV: Joi.string().valid('production', 'development', 'test').required(),
     PORT: Joi.number().default(3000),
     CORS_ORIGIN: Joi.string().required().description('URL for CORS'),
+    FE_URL: Joi.string().required().description('URL for Frontend App'),
     JWT_SECRET: Joi.string().required().description('JWT secret key'),
     JWT_ACCESS_EXPIRATION_MINUTES: Joi.number()
       .default(30)
@@ -48,6 +49,7 @@ if (error) {
 export default {
   env: envVars.NODE_ENV,
   port: envVars.PORT,
+  feUrl: envVars.FE_URL,
   cors: {
     origin: envVars.CORS_ORIGIN === '*' ? true : envVars.CORS_ORIGIN
   },

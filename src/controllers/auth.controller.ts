@@ -39,10 +39,11 @@ const register = catchAsync(async (req, res) => {
 const login = catchAsync(async (req, res) => {
   const { email, password } = req.body;
   const user = await authService.loginUserWithEmailAndPassword(email, password);
-  const tokens = await tokenService.generateAuthTokens(user);
+  // FIX: Menambahkan argumen kedua 'user'
+  const tokens = await tokenService.generateAuthTokens(user, 'user');
   setAuthCookies(res, tokens);
-  const userResponse = exclude(user, ['password', 'role']);
-  res.send({ token: tokens.access.token, user: userResponse });
+  const userResponse = exclude(user, ['password']);
+  res.send({ message: 'Login successful', token: tokens.access.token, user: userResponse });
 });
 
 const logout = catchAsync(async (req, res) => {
@@ -51,42 +52,54 @@ const logout = catchAsync(async (req, res) => {
     await authService.logout(refreshToken);
   }
   clearAuthCookies(res);
-  res.status(httpStatus.NO_CONTENT).send();
+  res.status(httpStatus.OK).send({ message: 'Logged out successfully' });
 });
 
 const refreshTokens = catchAsync(async (req, res) => {
   const { refreshToken } = req.cookies;
   const tokens = await authService.refreshAuth(refreshToken);
   setAuthCookies(res, tokens);
-  res.status(httpStatus.NO_CONTENT).send();
+  res.status(httpStatus.OK).send({ message: 'Tokens refreshed' });
 });
 
 const forgotPassword = catchAsync(async (req, res) => {
   const resetPasswordToken = await tokenService.generateResetPasswordToken(req.body.email);
   await emailService.sendResetPasswordEmail(req.body.email, resetPasswordToken);
-  res.status(httpStatus.NO_CONTENT).send();
+  res.status(httpStatus.OK).send({
+    message: 'If an account with that email exists, a password reset link has been sent.'
+  });
 });
 
 const resetPassword = catchAsync(async (req, res) => {
   await authService.resetPassword(req.query.token as string, req.body.password);
-  res.status(httpStatus.NO_CONTENT).send();
+  res.status(httpStatus.OK).send({ message: 'Password has been reset successfully' });
 });
 
-const sendVerificationEmail = catchAsync(async (req, res) => {
+const sendMyVerificationEmail = catchAsync(async (req, res) => {
   const user = req.user as User;
+  if (user.emailVerifiedAt) {
+    res.status(httpStatus.BAD_REQUEST).send({ message: 'Email is already verified' });
+    return;
+  }
   const verifyEmailToken = await tokenService.generateVerifyEmailToken(user);
   await emailService.sendVerificationEmail(user.email, verifyEmailToken);
-  res.status(httpStatus.NO_CONTENT).send();
+  res.status(httpStatus.OK).send({ message: 'Verification email sent' });
+});
+
+const resendVerificationEmail = catchAsync(async (req, res) => {
+  await authService.resendVerificationEmail(req.body.email);
+  res.status(httpStatus.OK).send({ message: 'A new verification OTP has been sent to your email' });
 });
 
 const verifyEmail = catchAsync(async (req, res) => {
   const { email, otp } = req.body;
   const user = await authService.verifyEmail(email, otp);
-  const tokens = await tokenService.generateAuthTokens(user);
+  // FIX: Menambahkan argumen kedua 'user'
+  const tokens = await tokenService.generateAuthTokens(user, 'user');
   setAuthCookies(res, tokens);
   const userResponse = {
     id: user.id,
-    name: user.name, // Diubah dari fullName
+    name: user.name,
     username: user.username,
     email: user.email
   };
@@ -104,6 +117,7 @@ export default {
   refreshTokens,
   forgotPassword,
   resetPassword,
-  sendVerificationEmail,
+  sendMyVerificationEmail,
+  resendVerificationEmail,
   verifyEmail
 };

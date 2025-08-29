@@ -1,9 +1,10 @@
 import express from 'express';
 import authRoute from './auth.route';
 import userRoute from './user.route';
+import adminRoute from './admin.route'; // New
 import docsRoute from './docs.route';
-import activityRoute from './activity.route'; // New
-import leaderboardRoute from './leaderboard.route'; // New
+import activityRoute from './activity.route';
+import leaderboardRoute from './leaderboard.route';
 import config from '../../config/config';
 
 const router = express.Router();
@@ -14,15 +15,19 @@ const defaultRoutes = [
     route: authRoute
   },
   {
-    path: '/user', // Corrected path from /users to /user to match spec
+    path: '/user',
     route: userRoute
   },
   {
-    path: '/activities', // New
+    path: '/admin', // New
+    route: adminRoute
+  },
+  {
+    path: '/activities',
     route: activityRoute
   },
   {
-    path: '/leaderboard', // New
+    path: '/leaderboard',
     route: leaderboardRoute
   }
 ];

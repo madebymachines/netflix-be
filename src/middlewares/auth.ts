@@ -3,7 +3,7 @@ import httpStatus from 'http-status';
 import ApiError from '../utils/ApiError';
 import { roleRights } from '../config/roles';
 import { NextFunction, Request, Response } from 'express';
-import { User } from '@prisma/client';
+import { Admin, User } from '@prisma/client';
 
 const verifyCallback =
   (
@@ -12,18 +12,27 @@ const verifyCallback =
     reject: (reason?: unknown) => void,
     requiredRights: string[]
   ) =>
-  async (err: unknown, user: User | false, info: unknown) => {
-    if (err || info || !user) {
+  async (
+    err: unknown,
+    entity: (User | Admin) & { entityType: string; role?: any },
+    info: unknown
+  ) => {
+    if (err || info || !entity) {
       return reject(new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate'));
     }
-    req.user = user;
+    req.user = entity;
 
     if (requiredRights.length) {
-      const userRights = roleRights.get(user.role) ?? [];
+      // Hanya admin yang punya 'rights'
+      if (entity.entityType !== 'admin') {
+        return reject(new ApiError(httpStatus.FORBIDDEN, 'Forbidden'));
+      }
+
+      const userRights = roleRights.get(entity.role) ?? [];
       const hasRequiredRights = requiredRights.every((requiredRight) =>
         userRights.includes(requiredRight)
       );
-      if (!hasRequiredRights && req.params.userId !== user.id) {
+      if (!hasRequiredRights) {
         return reject(new ApiError(httpStatus.FORBIDDEN, 'Forbidden'));
       }
     }

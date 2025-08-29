@@ -1,4 +1,4 @@
-import { User, Role, Prisma } from '@prisma/client';
+import { User, Prisma } from '@prisma/client';
 import httpStatus from 'http-status';
 import prisma from '../client';
 import ApiError from '../utils/ApiError';
@@ -12,15 +12,7 @@ import { encryptPassword } from '../utils/encryption';
  */
 const getUserByUsername = async <Key extends keyof User>(
   username: string,
-  keys: Key[] = [
-    'id',
-    'email',
-    'name', // Diubah dari fullName
-    'role',
-    'purchaseStatus',
-    'createdAt',
-    'updatedAt'
-  ] as Key[]
+  keys: Key[] = ['id', 'email', 'name', 'purchaseStatus', 'createdAt', 'updatedAt'] as Key[]
 ): Promise<Pick<User, Key> | null> => {
   return prisma.user.findUnique({
     where: { username },
@@ -31,7 +23,7 @@ const getUserByUsername = async <Key extends keyof User>(
 const createUser = async (userBody: {
   email: string;
   password: string;
-  name: string; // Diubah dari fullName
+  name: string;
   username: string;
   phoneNumber: string;
   country: string;
@@ -45,8 +37,7 @@ const createUser = async (userBody: {
   const user = await prisma.user.create({
     data: {
       ...userBody,
-      password: await encryptPassword(userBody.password),
-      role: Role.USER
+      password: await encryptPassword(userBody.password)
     }
   });
 
@@ -74,15 +65,7 @@ const queryUsers = async <Key extends keyof User>(
     sortBy?: string;
     sortType?: 'asc' | 'desc';
   },
-  keys: Key[] = [
-    'id',
-    'email',
-    'name', // Diubah dari fullName
-    'role',
-    'purchaseStatus',
-    'createdAt',
-    'updatedAt'
-  ] as Key[]
+  keys: Key[] = ['id', 'email', 'name', 'purchaseStatus', 'createdAt', 'updatedAt'] as Key[]
 ): Promise<Pick<User, Key>[]> => {
   const page = options.page ?? 1;
   const limit = options.limit ?? 10;
@@ -109,13 +92,12 @@ const getUserById = async <Key extends keyof User>(
   keys: Key[] = [
     'id',
     'email',
-    'name', // Diubah dari fullName
+    'name',
     'username',
     'phoneNumber',
     'profilePictureUrl',
     'country',
-    'purchaseStatus',
-    'role'
+    'purchaseStatus'
   ] as Key[]
 ): Promise<Pick<User, Key> | null> => {
   return prisma.user.findUnique({
@@ -129,9 +111,8 @@ const getUserByEmail = async <Key extends keyof User>(
   keys: Key[] = [
     'id',
     'email',
-    'name', // Diubah dari fullName
+    'name',
     'password',
-    'role',
     'emailVerifiedAt',
     'createdAt',
     'updatedAt'
@@ -146,7 +127,7 @@ const getUserByEmail = async <Key extends keyof User>(
 const updateUserById = async <Key extends keyof User>(
   userId: number,
   updateBody: Prisma.UserUpdateInput,
-  keys: Key[] = ['id', 'email', 'name', 'username', 'phoneNumber', 'role'] as Key[] // Diubah dari fullName
+  keys: Key[] = ['id', 'email', 'name', 'username', 'phoneNumber'] as Key[]
 ): Promise<Pick<User, Key> | null> => {
   const user = await getUserById(userId, ['id', 'email', 'username']);
   if (!user) {

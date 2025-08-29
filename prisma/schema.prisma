@@ -21,13 +21,23 @@ model User {
   country               String?
   purchaseStatus        PurchaseStatus          @default(NOT_VERIFIED)
   emailVerifiedAt       DateTime?
-  role                  Role                    @default(USER)
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
   tokens                Token[]
   purchaseVerifications PurchaseVerification[]
   activityHistory       ActivityHistory[]
   stats                 UserStats?
+}
+
+model Admin {
+  id        Int       @id @default(autoincrement())
+  name      String
+  email     String    @unique
+  password  String
+  role      AdminRole
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  tokens    Token[]
 }
 
 model PurchaseVerification {
@@ -69,8 +79,10 @@ model Token {
   expires     DateTime
   blacklisted Boolean
   createdAt   DateTime  @default(now())
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId      Int
+  user        User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      Int?
+  admin       Admin?    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  adminId     Int?
 }
 
 enum PurchaseStatus {
@@ -80,9 +92,9 @@ enum PurchaseStatus {
   REJECTED
 }
 
-enum Role {
-  USER
+enum AdminRole {
   ADMIN
+  SUPER_ADMIN
 }
 
 enum TokenType {

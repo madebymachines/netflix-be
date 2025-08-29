@@ -4,73 +4,72 @@ import httpStatus from 'http-status';
 import config from '../config/config';
 import userService from './user.service';
 import ApiError from '../utils/ApiError';
-import { Token, TokenType } from '@prisma/client';
+import { Token, TokenType, User, Admin } from '@prisma/client';
 import prisma from '../client';
 import { AuthTokensResponse } from '../types/response';
 
+// FIX: Mengubah tipe Entity agar lebih fleksibel, hanya membutuhkan 'id'
+type Entity = { id: number };
+type EntityType = 'user' | 'admin';
+
 /**
  * Generate token
- * @param {number} userId
- * @param {Moment} expires
- * @param {string} type
- * @param {string} [secret]
- * @returns {string}
  */
 const generateToken = (
-  userId: number,
+  entityId: number,
   expires: Moment,
   type: TokenType,
+  entityType: EntityType,
   secret = config.jwt.secret
 ): string => {
   const payload = {
-    sub: userId,
+    sub: entityId,
     iat: moment().unix(),
     exp: expires.unix(),
-    type
+    type,
+    entityType
   };
   return jwt.sign(payload, secret);
 };
 
 /**
  * Save a token
- * @param {string} token
- * @param {number} userId
- * @param {Moment} expires
- * @param {string} type
- * @param {boolean} [blacklisted]
- * @returns {Promise<Token>}
  */
 const saveToken = async (
   token: string,
-  userId: number,
+  entityId: number,
   expires: Moment,
   type: TokenType,
+  entityType: EntityType,
   blacklisted = false
 ): Promise<Token> => {
-  const createdToken = prisma.token.create({
-    data: {
-      token,
-      userId: userId,
-      expires: expires.toDate(),
-      type,
-      blacklisted
-    }
-  });
+  const data = {
+    token,
+    expires: expires.toDate(),
+    type,
+    blacklisted,
+    ...(entityType === 'admin' ? { adminId: entityId } : { userId: entityId })
+  };
+  const createdToken = prisma.token.create({ data });
   return createdToken;
 };
 
 /**
- * Verify token and return token doc (or throw an error if it is not valid)
- * @param {string} token
- * @param {string} type
- * @returns {Promise<Token>}
+ * Verify token and return token doc
  */
 const verifyToken = async (token: string, type: TokenType): Promise<Token> => {
-  const payload = jwt.verify(token, config.jwt.secret);
-  const userId = Number(payload.sub);
-  const tokenData = await prisma.token.findFirst({
-    where: { token, type, userId, blacklisted: false }
-  });
+  const payload = jwt.verify(token, config.jwt.secret) as jwt.JwtPayload;
+  const entityId = Number(payload.sub);
+  const entityType = payload.entityType;
+
+  const whereClause = {
+    token,
+    type,
+    blacklisted: false,
+    ...(entityType === 'admin' ? { adminId: entityId } : { userId: entityId })
+  };
+
+  const tokenData = await prisma.token.findFirst({ where: whereClause });
   if (!tokenData) {
     throw new Error('Token not found');
   }
@@ -79,16 +78,17 @@ const verifyToken = async (token: string, type: TokenType): Promise<Token> => {
 
 /**
  * Generate auth tokens
- * @param {User} user
- * @returns {Promise<AuthTokensResponse>}
  */
-const generateAuthTokens = async (user: { id: number }): Promise<AuthTokensResponse> => {
+const generateAuthTokens = async (
+  entity: Entity,
+  entityType: EntityType
+): Promise<AuthTokensResponse> => {
   const accessTokenExpires = moment().add(config.jwt.accessExpirationMinutes, 'minutes');
-  const accessToken = generateToken(user.id, accessTokenExpires, TokenType.ACCESS);
+  const accessToken = generateToken(entity.id, accessTokenExpires, TokenType.ACCESS, entityType);
 
   const refreshTokenExpires = moment().add(config.jwt.refreshExpirationDays, 'days');
-  const refreshToken = generateToken(user.id, refreshTokenExpires, TokenType.REFRESH);
-  await saveToken(refreshToken, user.id, refreshTokenExpires, TokenType.REFRESH);
+  const refreshToken = generateToken(entity.id, refreshTokenExpires, TokenType.REFRESH, entityType);
+  await saveToken(refreshToken, entity.id, refreshTokenExpires, TokenType.REFRESH, entityType);
 
   return {
     access: {
@@ -104,8 +104,6 @@ const generateAuthTokens = async (user: { id: number }): Promise<AuthTokensRespo
 
 /**
  * Generate reset password token
- * @param {string} email
- * @returns {Promise<string>}
  */
 const generateResetPasswordToken = async (email: string): Promise<string> => {
   const user = await userService.getUserByEmail(email);
@@ -113,20 +111,23 @@ const generateResetPasswordToken = async (email: string): Promise<string> => {
     throw new ApiError(httpStatus.NOT_FOUND, 'No users found with this email');
   }
   const expires = moment().add(config.jwt.resetPasswordExpirationMinutes, 'minutes');
-  const resetPasswordToken = generateToken(user.id as number, expires, TokenType.RESET_PASSWORD);
-  await saveToken(resetPasswordToken, user.id as number, expires, TokenType.RESET_PASSWORD);
+  const resetPasswordToken = generateToken(
+    user.id as number,
+    expires,
+    TokenType.RESET_PASSWORD,
+    'user'
+  );
+  await saveToken(resetPasswordToken, user.id as number, expires, TokenType.RESET_PASSWORD, 'user');
   return resetPasswordToken;
 };
 
 /**
  * Generate verify email token
- * @param {User} user
- * @returns {Promise<string>}
  */
 const generateVerifyEmailToken = async (user: { id: number }): Promise<string> => {
   const expires = moment().add(config.jwt.verifyEmailExpirationMinutes, 'minutes');
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  await saveToken(otp, user.id, expires, TokenType.VERIFY_EMAIL);
+  await saveToken(otp, user.id, expires, TokenType.VERIFY_EMAIL, 'user');
   return otp;
 };
 

@@ -3,24 +3,25 @@ import auth from '../../middlewares/auth';
 import validate from '../../middlewares/validate';
 import { userValidation } from '../../validations';
 import { userController } from '../../controllers';
-import upload from '../../middlewares/upload'; // Impor middleware upload
+import upload from '../../middlewares/upload';
 
 const router = express.Router();
 
-// Rute untuk pengguna yang sedang login
 router
   .route('/me')
   .get(auth(), userController.getMe)
-  // Gunakan middleware upload.single('profilePicture')
-  .put(
+  .put(auth(), validate(userValidation.updateMe), userController.updateMe);
+
+router
+  .route('/me/profile-picture')
+  .post(
     auth(),
     upload.single('profilePicture'),
-    validate(userValidation.updateMe),
-    userController.updateMe
-  );
+    validate(userValidation.updateProfilePicture),
+    userController.updateProfilePicture
+  )
+  .delete(auth(), userController.deleteProfilePicture);
 
-// Rute untuk verifikasi pembelian
-// Gunakan middleware upload.single('receiptImage')
 router
   .route('/purchase-verification')
   .post(
@@ -33,17 +34,5 @@ router
 router
   .route('/purchase-verification/status')
   .get(auth(), userController.getPurchaseVerificationStatus);
-
-// Rute khusus admin
-router
-  .route('/')
-  .post(auth('manageUsers'), validate(userValidation.createUser), userController.createUser)
-  .get(auth('getUsers'), validate(userValidation.getUsers), userController.getUsers);
-
-router
-  .route('/:userId')
-  .get(auth('getUsers'), validate(userValidation.getUser), userController.getUser)
-  .patch(auth('manageUsers'), validate(userValidation.updateUser), userController.updateUser)
-  .delete(auth('manageUsers'), validate(userValidation.deleteUser), userController.deleteUser);
 
 export default router;

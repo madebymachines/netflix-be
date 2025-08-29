@@ -1,4 +1,3 @@
-import { Role } from '@prisma/client';
 import Joi from 'joi';
 import { password } from './custom.validation';
 
@@ -6,18 +5,16 @@ const createUser = {
   body: Joi.object().keys({
     email: Joi.string().required().email(),
     password: Joi.string().required().custom(password),
-    name: Joi.string().required(), // Diubah dari fullName
+    name: Joi.string().required(),
     username: Joi.string().required(),
     phoneNumber: Joi.string().optional(),
-    country: Joi.string().optional(),
-    role: Joi.string().required().valid(Role.USER, Role.ADMIN)
+    country: Joi.string().optional()
   })
 };
 
 const getUsers = {
   query: Joi.object().keys({
-    name: Joi.string(), // Diubah dari fullName
-    role: Joi.string(),
+    name: Joi.string(),
     sortBy: Joi.string(),
     limit: Joi.number().integer(),
     page: Joi.number().integer()
@@ -38,21 +35,22 @@ const updateUser = {
     .keys({
       email: Joi.string().email(),
       password: Joi.string().custom(password),
-      name: Joi.string(), // Diubah dari fullName
+      name: Joi.string(),
       username: Joi.string(),
       phoneNumber: Joi.string().optional().allow(''),
       country: Joi.string().optional().allow('')
-      // profilePictureUrl dihapus karena ditangani melalui unggahan file
     })
     .min(1)
 };
 
 const updateMe = {
-  body: Joi.object().keys({
-    name: Joi.string(), // Diubah dari fullName
-    phoneNumber: Joi.string().optional().allow('')
-  })
-  // Memperbolehkan body kosong jika ada file yang diunggah
+  body: Joi.object()
+    .keys({
+      name: Joi.string(),
+      username: Joi.string(),
+      phoneNumber: Joi.string().optional().allow('')
+    })
+    .min(1)
 };
 
 const deleteUser = {
@@ -61,9 +59,12 @@ const deleteUser = {
   })
 };
 
-// Validasi baru untuk unggahan verifikasi pembelian
 const uploadPurchaseVerification = {
-  body: Joi.object().keys({}) // Body bisa kosong, validasi ada di file itu sendiri oleh middleware
+  body: Joi.object().keys({})
+};
+
+const updateProfilePicture = {
+  body: Joi.object().keys({})
 };
 
 export default {
@@ -73,5 +74,6 @@ export default {
   updateUser,
   updateMe,
   deleteUser,
-  uploadPurchaseVerification // Ekspor validasi baru
+  uploadPurchaseVerification,
+  updateProfilePicture
 };

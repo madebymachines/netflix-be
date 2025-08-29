@@ -2,18 +2,18 @@ import httpStatus from 'http-status';
 import pick from '../utils/pick';
 import ApiError from '../utils/ApiError';
 import catchAsync from '../utils/catchAsync';
-import { userService, s3Service } from '../services'; // Impor s3Service
+import { userService, s3Service, activityService } from '../services';
 import { User, PurchaseStatus } from '@prisma/client';
 import exclude from '../utils/exclude';
 import prisma from '../client';
 import { Request } from 'express';
 
 const createUser = catchAsync(async (req, res) => {
-  const { email, password, name, username, phoneNumber, country } = req.body; // Diubah dari fullName
+  const { email, password, name, username, phoneNumber, country } = req.body;
   const user = await userService.createUser({
     email,
     password,
-    name, // Diubah dari fullName
+    name,
     username,
     phoneNumber,
     country
@@ -21,7 +21,7 @@ const createUser = catchAsync(async (req, res) => {
   res.status(httpStatus.CREATED).send(exclude(user, ['password']));
 });
 const getUsers = catchAsync(async (req, res) => {
-  const filter = pick(req.query, ['name', 'role']); // Diubah dari fullName
+  const filter = pick(req.query, ['name']);
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
   const result = await userService.queryUsers(filter, options);
   res.send(result);
@@ -32,59 +32,85 @@ const getMe = catchAsync(async (req, res) => {
   if (!userDetails) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
   }
-  const userStats = await prisma.userStats.findUnique({ where: { userId: user.id } });
 
-  // Update response Stats sesuai model baru
-  const statsResponse = userStats
-    ? {
-        totalPoints: userStats.totalPoints,
-        totalChallenges: userStats.totalChallenges,
-        topStreak: userStats.topStreak,
-        currentStreak: userStats.currentStreak
-      }
-    : null;
+  const [userStats, totalRepsResult] = await Promise.all([
+    prisma.userStats.findUnique({ where: { userId: user.id } }),
+    activityService.getUserIndividualReps(user.id)
+  ]);
+
+  const statsResponse = {
+    totalPoints: userStats?.totalPoints || 0,
+    totalChallenges: userStats?.totalChallenges || 0,
+    topStreak: userStats?.topStreak || 0,
+    currentStreak: userStats?.currentStreak || 0,
+    region: userDetails.country || null,
+    totalReps: totalRepsResult,
+    totalCalori: (userStats?.totalPoints || 0) * 0.3
+  };
 
   res.send({
-    profile: exclude(userDetails, ['password', 'role']),
+    profile: exclude(userDetails, ['password']),
     stats: statsResponse
   });
 });
 
 const updateMe = catchAsync(async (req: Request, res) => {
   const user = req.user as User;
-  const updateBody = req.body;
-  const file = req.file;
+  const updateBody = pick(req.body, ['name', 'username', 'phoneNumber']);
 
-  if (Object.keys(updateBody).length === 0 && !file) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Harap berikan konten untuk diperbarui.');
-  }
-
-  if (file) {
-    // Dapatkan data pengguna saat ini untuk menemukan URL gambar profil lama
-    const currentUser = await userService.getUserById(user.id, ['profilePictureUrl']);
-
-    // Hapus gambar profil lama dari S3 jika ada
-    if (currentUser?.profilePictureUrl) {
-      await s3Service.deleteFileByUrl(currentUser.profilePictureUrl);
-    }
-
-    // Unggah gambar profil baru ke S3
-    const newProfilePictureUrl = await s3Service.uploadFile(
-      file.buffer,
-      file.originalname,
-      file.mimetype,
-      'profile-pictures' // Nama folder
-    );
-
-    // Tambahkan URL baru ke updateBody
-    updateBody.profilePictureUrl = newProfilePictureUrl;
+  if (Object.keys(updateBody).length === 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Please provide content to update.');
   }
 
   const updatedUser = await userService.updateUserById(user.id, updateBody);
   res.send({
-    message: 'Profil berhasil diperbarui.',
+    message: 'Profile updated successfully.',
     user: updatedUser
   });
+});
+
+const updateProfilePicture = catchAsync(async (req: Request, res) => {
+  const user = req.user as User;
+  const file = req.file;
+
+  if (!file) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Profile picture file is required.');
+  }
+
+  const currentUser = await userService.getUserById(user.id, ['profilePictureUrl']);
+
+  if (currentUser?.profilePictureUrl) {
+    await s3Service.deleteFileByUrl(currentUser.profilePictureUrl);
+  }
+
+  const newProfilePictureUrl = await s3Service.uploadFile(
+    file.buffer,
+    file.originalname,
+    file.mimetype,
+    'profile-pictures'
+  );
+
+  const updatedUser = await userService.updateUserById(user.id, {
+    profilePictureUrl: newProfilePictureUrl
+  });
+
+  res.send({
+    message: 'Profile picture updated successfully.',
+    profilePictureUrl: updatedUser?.profilePictureUrl
+  });
+});
+
+const deleteProfilePicture = catchAsync(async (req: Request, res) => {
+  const user = req.user as User;
+
+  const currentUser = await userService.getUserById(user.id, ['profilePictureUrl']);
+
+  if (currentUser?.profilePictureUrl) {
+    await s3Service.deleteFileByUrl(currentUser.profilePictureUrl);
+    await userService.updateUserById(user.id, { profilePictureUrl: null });
+  }
+
+  res.status(httpStatus.OK).send({ message: 'Profile picture deleted successfully.' });
 });
 
 const getUser = catchAsync(async (req, res) => {
@@ -100,7 +126,7 @@ const updateUser = catchAsync(async (req, res) => {
 });
 const deleteUser = catchAsync(async (req, res) => {
   await userService.deleteUserById(parseInt(req.params.userId));
-  res.status(httpStatus.NO_CONTENT).send();
+  res.status(httpStatus.OK).send({ message: 'User deleted successfully.' });
 });
 
 const uploadPurchaseVerification = catchAsync(async (req: Request, res) => {
@@ -108,19 +134,17 @@ const uploadPurchaseVerification = catchAsync(async (req: Request, res) => {
   const file = req.file;
 
   if (!file) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Gambar struk diperlukan');
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Receipt image is required');
   }
 
-  // Unggah gambar struk baru ke S3
   const newReceiptImageUrl = await s3Service.uploadFile(
     file.buffer,
     file.originalname,
     file.mimetype,
-    'receipts' // Nama folder
+    'receipts'
   );
 
   await prisma.$transaction(async (tx) => {
-    // Temukan verifikasi PENDING atau REJECTED sebelumnya untuk pengguna
     const oldVerifications = await tx.purchaseVerification.findMany({
       where: {
         userId: user.id,
@@ -130,12 +154,10 @@ const uploadPurchaseVerification = catchAsync(async (req: Request, res) => {
       }
     });
 
-    // Hapus gambar struk lama dari S3
     for (const verification of oldVerifications) {
       await s3Service.deleteFileByUrl(verification.receiptImageUrl);
     }
 
-    // Hapus catatan verifikasi lama dari DB
     if (oldVerifications.length > 0) {
       await tx.purchaseVerification.deleteMany({
         where: {
@@ -146,7 +168,6 @@ const uploadPurchaseVerification = catchAsync(async (req: Request, res) => {
       });
     }
 
-    // Buat permintaan verifikasi baru
     await tx.purchaseVerification.create({
       data: {
         userId: user.id,
@@ -155,7 +176,6 @@ const uploadPurchaseVerification = catchAsync(async (req: Request, res) => {
       }
     });
 
-    // Perbarui status pembelian utama pengguna
     await tx.user.update({
       where: { id: user.id },
       data: { purchaseStatus: PurchaseStatus.PENDING }
@@ -163,7 +183,7 @@ const uploadPurchaseVerification = catchAsync(async (req: Request, res) => {
   });
 
   res.status(httpStatus.ACCEPTED).send({
-    message: 'Struk berhasil diunggah. Menunggu verifikasi.',
+    message: 'Receipt uploaded successfully. Awaiting verification.',
     status: PurchaseStatus.PENDING
   });
 });
@@ -203,6 +223,8 @@ export default {
   getUsers,
   getMe,
   updateMe,
+  updateProfilePicture,
+  deleteProfilePicture,
   getUser,
   updateUser,
   deleteUser,

@@ -37,23 +37,17 @@ const saveActivity = async (
     let isTopStreakUpdated = false;
 
     // 2. Logika Streak
-    // Cek jika ini adalah aktivitas pertama pengguna
     if (userStats.totalChallenges === 0) {
       currentStreak = 1;
     } else {
       const diffDays = today.diff(lastUpdatedDay, 'days');
       if (diffDays === 1) {
-        // Aktivitas hari berikutnya, lanjutkan streak
         currentStreak++;
       } else if (diffDays > 1) {
-        // Melewatkan satu hari atau lebih, reset streak
         currentStreak = 1;
       }
-      // Jika diffDays === 0, berarti aktivitas lain di hari yang sama,
-      // maka currentStreak tidak perlu diubah.
     }
 
-    // Perbarui topStreak jika currentStreak saat ini lebih tinggi
     if (currentStreak > topStreak) {
       topStreak = currentStreak;
       isTopStreakUpdated = true;
@@ -126,7 +120,26 @@ const getActivityHistory = async (userId: number, options: { limit?: number; pag
   };
 };
 
+/**
+ * Menghitung total poin dari aktivitas 'INDIVIDUAL'.
+ * @param {number} userId - ID Pengguna
+ * @returns {Promise<number>} - Total poin
+ */
+const getUserIndividualReps = async (userId: number): Promise<number> => {
+  const result = await prisma.activityHistory.aggregate({
+    _sum: {
+      pointsEarn: true
+    },
+    where: {
+      userId,
+      eventType: 'INDIVIDUAL'
+    }
+  });
+  return result._sum.pointsEarn || 0;
+};
+
 export default {
   saveActivity,
-  getActivityHistory
+  getActivityHistory,
+  getUserIndividualReps
 };

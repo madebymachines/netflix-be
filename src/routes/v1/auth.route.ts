@@ -9,11 +9,7 @@ const router = express.Router();
 router.post('/register', validate(authValidation.register), authController.register);
 router.post('/login', validate(authValidation.login), authController.login);
 router.post('/logout', authController.logout);
-router.post(
-  '/refresh-tokens',
-  validate(authValidation.refreshTokens),
-  authController.refreshTokens
-);
+router.post('/refresh-tokens', authController.refreshTokens);
 router.post(
   '/forgot-password',
   validate(authValidation.forgotPassword),
@@ -24,7 +20,14 @@ router.post(
   validate(authValidation.resetPassword),
   authController.resetPassword
 );
-router.post('/send-verification-email', auth(), authController.sendVerificationEmail);
+
+router.post(
+  '/resend-verification-email',
+  validate(authValidation.resendVerificationEmail),
+  authController.resendVerificationEmail
+);
+
+router.post('/me/send-verification-email', auth(), authController.sendMyVerificationEmail);
 router.post('/verify-email', validate(authValidation.verifyEmail), authController.verifyEmail);
 
 export default router;
@@ -135,8 +138,8 @@ export default router;
  *     summary: Logout
  *     tags: [Auth]
  *     responses:
- *       "204":
- *         description: No content
+ *       "200":
+ *         description: OK
  *       "404":
  *         $ref: '#/components/responses/NotFound'
  */
@@ -149,8 +152,8 @@ export default router;
  *     tags: [Auth]
  *     description: Reads refresh token from httpOnly cookie and sets new auth tokens in cookies.
  *     responses:
- *       "204":
- *         description: No Content. New tokens are set in httpOnly cookies.
+ *       "200":
+ *         description: OK. New tokens are set in httpOnly cookies.
  *       "401":
  *         $ref: '#/components/responses/Unauthorized'
  */
@@ -177,8 +180,8 @@ export default router;
  *             example:
  *               email: fake@example.com
  *     responses:
- *       "204":
- *         description: No content
+ *       "200":
+ *         description: OK
  *       "404":
  *         $ref: '#/components/responses/NotFound'
  */
@@ -213,8 +216,8 @@ export default router;
  *             example:
  *               password: password1
  *     responses:
- *       "204":
- *         description: No content
+ *       "200":
+ *         description: OK
  *       "401":
  *         description: Password reset failed
  *         content:
@@ -228,18 +231,48 @@ export default router;
 
 /**
  * @swagger
- * /auth/send-verification-email:
+ * /auth/me/send-verification-email:
  *   post:
- *     summary: Send verification email
- *     description: An email will be sent to verify email.
+ *     summary: Send verification email for logged in user
+ *     description: An email will be sent to verify email. Requires authentication.
  *     tags: [Auth]
  *     security:
  *       - bearerAuth: []
  *     responses:
- *       "204":
- *         description: No content
+ *       "200":
+ *         description: OK
  *       "401":
  *         $ref: '#/components/responses/Unauthorized'
+ */
+
+/**
+ * @swagger
+ * /auth/resend-verification-email:
+ *   post:
+ *     summary: Resend verification email
+ *     description: An email will be sent to verify the user's email address. Use this after registration if the initial OTP was not received or expired.
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *             example:
+ *               email: "user@example.com"
+ *     responses:
+ *       "200":
+ *         description: A new verification OTP has been sent.
+ *       "400":
+ *         description: Email is already verified.
+ *       "404":
+ *         description: No user found with this email.
  */
 
 /**
@@ -269,8 +302,8 @@ export default router;
  *               email: fake@example.com
  *               otp: "123456"
  *     responses:
- *       "204":
- *         description: No content
+ *       "200":
+ *         description: Email verified successfully
  *       "401":
  *         description: Email verification failed due to invalid OTP or email
  *         content:
