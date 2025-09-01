@@ -60,11 +60,28 @@ const deleteUser = {
 };
 
 const uploadPurchaseVerification = {
-  body: Joi.object().keys({})
+  body: Joi.object().keys({
+    type: Joi.string().valid('MEMBER_GYM', 'RECEIPT').required()
+  })
 };
 
 const updateProfilePicture = {
   body: Joi.object().keys({})
+};
+
+const approvePurchase = {
+  params: Joi.object().keys({
+    verificationId: Joi.number().integer().required()
+  })
+};
+
+const rejectPurchase = {
+  params: Joi.object().keys({
+    verificationId: Joi.number().integer().required()
+  }),
+  body: Joi.object().keys({
+    rejectionReason: Joi.string().required()
+  })
 };
 
 export default {
@@ -75,5 +92,7 @@ export default {
   updateMe,
   deleteUser,
   uploadPurchaseVerification,
-  updateProfilePicture
+  updateProfilePicture,
+  approvePurchase,
+  rejectPurchase
 };

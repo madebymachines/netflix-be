@@ -49,6 +49,7 @@ model PurchaseVerification {
   submittedAt     DateTime       @default(now())
   reviewedAt      DateTime?
   user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            PurchaseType   @default(RECEIPT)
 }
 
 model ActivityHistory {
@@ -83,6 +84,11 @@ model Token {
   userId      Int?
   admin       Admin?    @relation(fields: [adminId], references: [id], onDelete: Cascade)
   adminId     Int?
+}
+
+enum PurchaseType {
+  MEMBER_GYM
+  RECEIPT
 }
 
 enum PurchaseStatus {

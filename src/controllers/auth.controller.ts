@@ -1,11 +1,12 @@
 import httpStatus from 'http-status';
 import catchAsync from '../utils/catchAsync';
-import { authService, userService, tokenService, emailService } from '../services';
+import { authService, userService, tokenService, emailService, activityService } from '../services';
 import exclude from '../utils/exclude';
 import { User } from '@prisma/client';
 import config from '../config/config';
 import { AuthTokensResponse } from '../types/response';
 import { Response } from 'express';
+import prisma from '../client';
 
 const setAuthCookies = (res: Response, tokens: AuthTokensResponse) => {
   res.cookie('accessToken', tokens.access.token, {
@@ -39,11 +40,26 @@ const register = catchAsync(async (req, res) => {
 const login = catchAsync(async (req, res) => {
   const { email, password } = req.body;
   const user = await authService.loginUserWithEmailAndPassword(email, password);
-  // FIX: Menambahkan argumen kedua 'user'
   const tokens = await tokenService.generateAuthTokens(user, 'user');
   setAuthCookies(res, tokens);
   const userResponse = exclude(user, ['password']);
-  res.send({ message: 'Login successful', token: tokens.access.token, user: userResponse });
+
+  const [userStats, totalRepsResult] = await Promise.all([
+    prisma.userStats.findUnique({ where: { userId: user.id } }),
+    activityService.getUserIndividualReps(user.id)
+  ]);
+
+  const statsResponse = {
+    totalPoints: userStats?.totalPoints || 0,
+    totalChallenges: userStats?.totalChallenges || 0,
+    topStreak: userStats?.topStreak || 0,
+    currentStreak: userStats?.currentStreak || 0,
+    region: user.country || null,
+    totalReps: totalRepsResult,
+    totalCalori: (userStats?.totalPoints || 0) * 0.3
+  };
+
+  res.send({ message: 'Login successful', user: userResponse, stats: statsResponse });
 });
 
 const logout = catchAsync(async (req, res) => {
@@ -94,7 +110,6 @@ const resendVerificationEmail = catchAsync(async (req, res) => {
 const verifyEmail = catchAsync(async (req, res) => {
   const { email, otp } = req.body;
   const user = await authService.verifyEmail(email, otp);
-  // FIX: Menambahkan argumen kedua 'user'
   const tokens = await tokenService.generateAuthTokens(user, 'user');
   setAuthCookies(res, tokens);
   const userResponse = {

@@ -8,7 +8,7 @@ const register = {
     email: Joi.string().required().email(),
     password: Joi.string().required().custom(password),
     phoneNumber: Joi.string().required(),
-    country: Joi.string().required()
+    country: Joi.string().required().valid('SG', 'TH', 'MY')
   })
 };
 

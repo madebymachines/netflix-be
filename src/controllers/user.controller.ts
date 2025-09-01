@@ -132,6 +132,7 @@ const deleteUser = catchAsync(async (req, res) => {
 const uploadPurchaseVerification = catchAsync(async (req: Request, res) => {
   const user = req.user as User;
   const file = req.file;
+  const { type } = req.body;
 
   if (!file) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Receipt image is required');
@@ -172,7 +173,8 @@ const uploadPurchaseVerification = catchAsync(async (req: Request, res) => {
       data: {
         userId: user.id,
         receiptImageUrl: newReceiptImageUrl,
-        status: PurchaseStatus.PENDING
+        status: PurchaseStatus.PENDING,
+        type: type
       }
     });
 

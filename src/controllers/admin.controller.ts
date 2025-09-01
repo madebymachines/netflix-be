@@ -5,6 +5,7 @@ import { Response } from 'express';
 import { AuthTokensResponse } from '../types/response';
 import config from '../config/config';
 import pick from '../utils/pick';
+import { PurchaseStatus } from '@prisma/client';
 
 const setAuthCookies = (res: Response, tokens: AuthTokensResponse) => {
   res.cookie('accessToken', tokens.access.token, {
@@ -56,11 +57,30 @@ const deleteUser = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send({ message: 'User deleted successfully' });
 });
 
+const approvePurchase = catchAsync(async (req, res) => {
+  const { verificationId } = req.params;
+  await userService.reviewPurchaseVerification(parseInt(verificationId), PurchaseStatus.APPROVED);
+  res.status(httpStatus.OK).send({ message: 'Purchase verification has been approved.' });
+});
+
+const rejectPurchase = catchAsync(async (req, res) => {
+  const { verificationId } = req.params;
+  const { rejectionReason } = req.body;
+  await userService.reviewPurchaseVerification(
+    parseInt(verificationId),
+    PurchaseStatus.REJECTED,
+    rejectionReason
+  );
+  res.status(httpStatus.OK).send({ message: 'Purchase verification has been rejected.' });
+});
+
 export default {
   adminLogin,
   createUser,
   getUsers,
   getUser,
   updateUser,
-  deleteUser
+  deleteUser,
+  approvePurchase,
+  rejectPurchase
 };

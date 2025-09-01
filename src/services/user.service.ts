@@ -1,4 +1,4 @@
-import { User, Prisma } from '@prisma/client';
+import { User, Prisma, PurchaseStatus } from '@prisma/client';
 import httpStatus from 'http-status';
 import prisma from '../client';
 import ApiError from '../utils/ApiError';
@@ -164,6 +164,45 @@ const deleteUserById = async (userId: number): Promise<User> => {
   return user as User;
 };
 
+const reviewPurchaseVerification = async (
+  verificationId: number,
+  status: 'APPROVED' | 'REJECTED',
+  rejectionReason?: string
+) => {
+  const verification = await prisma.purchaseVerification.findUnique({
+    where: { id: verificationId }
+  });
+
+  if (!verification) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Purchase verification not found');
+  }
+
+  if (verification.status !== PurchaseStatus.PENDING) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      `Purchase has already been ${verification.status.toLowerCase()}`
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.purchaseVerification.update({
+      where: { id: verificationId },
+      data: {
+        status,
+        rejectionReason: status === PurchaseStatus.REJECTED ? rejectionReason : null,
+        reviewedAt: new Date()
+      }
+    });
+
+    await tx.user.update({
+      where: { id: verification.userId },
+      data: {
+        purchaseStatus: status
+      }
+    });
+  });
+};
+
 export default {
   createUser,
   queryUsers,
@@ -171,5 +210,6 @@ export default {
   getUserByEmail,
   getUserByUsername,
   updateUserById,
-  deleteUserById
+  deleteUserById,
+  reviewPurchaseVerification
 };

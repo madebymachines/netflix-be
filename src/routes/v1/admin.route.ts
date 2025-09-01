@@ -21,4 +21,21 @@ router
   .patch(auth('manageUsers'), validate(userValidation.updateUser), adminController.updateUser)
   .delete(auth('manageUsers'), validate(userValidation.deleteUser), adminController.deleteUser);
 
+// Purchase Verification Management
+router
+  .route('/purchase-verifications/:verificationId/approve')
+  .patch(
+    auth('manageUsers'),
+    validate(userValidation.approvePurchase),
+    adminController.approvePurchase
+  );
+
+router
+  .route('/purchase-verifications/:verificationId/reject')
+  .patch(
+    auth('manageUsers'),
+    validate(userValidation.rejectPurchase),
+    adminController.rejectPurchase
+  );
+
 export default router;
