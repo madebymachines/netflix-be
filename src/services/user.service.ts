@@ -3,6 +3,7 @@ import httpStatus from 'http-status';
 import prisma from '../client';
 import ApiError from '../utils/ApiError';
 import { encryptPassword } from '../utils/encryption';
+import emailService from './email.service';
 
 /**
  * Get user by username
@@ -170,11 +171,26 @@ const reviewPurchaseVerification = async (
   rejectionReason?: string
 ) => {
   const verification = await prisma.purchaseVerification.findUnique({
-    where: { id: verificationId }
+    where: { id: verificationId },
+    include: {
+      user: {
+        select: {
+          email: true,
+          name: true
+        }
+      }
+    }
   });
 
   if (!verification) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Purchase verification not found');
+  }
+
+  if (!verification.user) {
+    throw new ApiError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      'User associated with verification not found.'
+    );
   }
 
   if (verification.status !== PurchaseStatus.PENDING) {
@@ -201,6 +217,14 @@ const reviewPurchaseVerification = async (
       }
     });
   });
+
+  if (status === PurchaseStatus.REJECTED) {
+    await emailService.sendPurchaseRejectionEmail(
+      verification.user.email,
+      verification.user.name,
+      rejectionReason
+    );
+  }
 };
 
 export default {

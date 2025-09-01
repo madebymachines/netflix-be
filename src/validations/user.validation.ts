@@ -80,7 +80,7 @@ const rejectPurchase = {
     verificationId: Joi.number().integer().required()
   }),
   body: Joi.object().keys({
-    rejectionReason: Joi.string().required()
+    rejectionReason: Joi.string().optional().allow('')
   })
 };
 

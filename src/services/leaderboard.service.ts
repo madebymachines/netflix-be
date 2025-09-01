@@ -59,15 +59,20 @@ const getPublicLeaderboard = async (options: {
       return map;
     }, {} as Record<number, typeof users[0]>);
 
+    // FIX: Menghitung totalReps hanya untuk rentang waktu mingguan
     const totalRepsData = await prisma.activityHistory.groupBy({
       by: ['userId'],
       _sum: { pointsEarn: true },
-      where: { userId: { in: userIds }, eventType: 'INDIVIDUAL' }
+      where: {
+        userId: { in: userIds },
+        eventType: 'INDIVIDUAL',
+        createdAt: { gte: startOfWeek, lte: endOfWeek } // Ditambahkan filter waktu
+      }
     });
-    const repsMap = totalRepsData.reduce((map, item) => {
+    const repsMap = totalRepsData.reduce<Record<number, number>>((map, item) => {
       map[item.userId] = item._sum.pointsEarn || 0;
       return map;
-    }, {} as Record<number, number>);
+    }, {});
 
     const leaderboard = weeklyLeadersAggregate.map((agg, index) => {
       const user = usersMap[agg.userId];
@@ -87,6 +92,7 @@ const getPublicLeaderboard = async (options: {
     };
   }
 
+  // Logika untuk 'alltime' dan 'streak'
   let orderBy: Prisma.UserStatsOrderByWithRelationInput;
   switch (timespan) {
     case 'streak':
@@ -114,15 +120,20 @@ const getPublicLeaderboard = async (options: {
   });
 
   const userIds = usersWithStats.map((u) => u.id);
-  const totalRepsData = await prisma.activityHistory.groupBy({
-    by: ['userId'],
-    _sum: { pointsEarn: true },
-    where: { userId: { in: userIds }, eventType: 'INDIVIDUAL' }
-  });
-  const repsMap = totalRepsData.reduce((map, item) => {
-    map[item.userId] = item._sum.pointsEarn || 0;
-    return map;
-  }, {} as Record<number, number>);
+  let repsMap: Record<number, number> = {};
+
+  // FIX: Hanya hitung totalReps jika timespan adalah 'alltime'
+  if (timespan === 'alltime') {
+    const totalRepsData = await prisma.activityHistory.groupBy({
+      by: ['userId'],
+      _sum: { pointsEarn: true },
+      where: { userId: { in: userIds }, eventType: 'INDIVIDUAL' }
+    });
+    repsMap = totalRepsData.reduce<Record<number, number>>((map, item) => {
+      map[item.userId] = item._sum.pointsEarn || 0;
+      return map;
+    }, {});
+  }
 
   const leaderboard = usersWithStats.map((user, index) => {
     const rank = skip + index + 1;
@@ -130,8 +141,7 @@ const getPublicLeaderboard = async (options: {
       rank,
       username: user.username,
       profilePictureUrl: user.profilePictureUrl,
-      country: user.country,
-      totalReps: repsMap[user.id] || 0
+      country: user.country
     };
 
     if (timespan === 'streak') {
@@ -141,9 +151,11 @@ const getPublicLeaderboard = async (options: {
       };
     }
 
+    // Default to 'alltime'
     return {
       ...commonData,
-      points: user.stats?.totalPoints || 0
+      points: user.stats?.totalPoints || 0,
+      totalReps: repsMap[user.id] || 0
     };
   });
 
@@ -172,31 +184,44 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
     include: { stats: true }
   });
 
-  if (!user || !user.stats) {
-    return {
+  if (!user) {
+    const baseResponse = {
       rank: 0,
-      username: user?.username || 'N/A',
-      profilePictureUrl: user?.profilePictureUrl || null,
-      country: user?.country || null,
-      points: 0,
-      streak: 0,
-      totalReps: 0
+      username: 'N/A',
+      profilePictureUrl: null,
+      country: null
     };
+    if (timespan === 'streak') {
+      return { ...baseResponse, streak: 0 };
+    }
+    return { ...baseResponse, points: 0, totalReps: 0 };
   }
 
-  const userReps = await prisma.activityHistory.aggregate({
-    _sum: { pointsEarn: true },
-    where: { userId, eventType: 'INDIVIDUAL' }
-  });
-  const totalReps = userReps._sum.pointsEarn || 0;
-
-  let rank = 0;
   const commonData = {
     username: user.username,
     profilePictureUrl: user.profilePictureUrl,
-    country: user.country,
-    totalReps
+    country: user.country
   };
+
+  if (!user.stats) {
+    const baseResponse = { ...commonData, rank: 0 };
+    if (timespan === 'streak') return { ...baseResponse, streak: 0 };
+
+    // Untuk alltime/weekly tanpa stats, points adalah 0, totalReps harus dihitung
+    let totalReps = 0;
+    if (timespan === 'alltime' || timespan === 'weekly') {
+      totalReps =
+        (
+          await prisma.activityHistory.aggregate({
+            _sum: { pointsEarn: true },
+            where: { userId, eventType: 'INDIVIDUAL' }
+          })
+        )._sum.pointsEarn || 0;
+    }
+    return { ...baseResponse, points: 0, totalReps };
+  }
+
+  let rank = 0;
 
   switch (timespan) {
     case 'weekly': {
@@ -213,16 +238,26 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
         by: ['userId'],
         where: { createdAt: { gte: startOfWeek, lte: endOfWeek } },
         _sum: { pointsEarn: true },
-        having: {
-          pointsEarn: {
-            _sum: {
-              gt: userScore
-            }
-          }
-        }
+        having: { pointsEarn: { _sum: { gt: userScore } } }
       });
       rank = rankAggregate.length + 1;
-      return { ...commonData, rank, points: userScore };
+
+      // FIX: Menghitung totalReps mingguan untuk myRank
+      const userWeeklyReps = await prisma.activityHistory.aggregate({
+        _sum: { pointsEarn: true },
+        where: {
+          userId,
+          eventType: 'INDIVIDUAL',
+          createdAt: { gte: startOfWeek, lte: endOfWeek }
+        }
+      });
+
+      return {
+        ...commonData,
+        rank,
+        points: userScore,
+        totalReps: userWeeklyReps._sum.pointsEarn || 0
+      };
     }
     case 'streak':
       rank =
@@ -230,12 +265,27 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
           where: { topStreak: { gt: user.stats.topStreak } }
         })) + 1;
       return { ...commonData, rank, streak: user.stats.topStreak };
-    default: // alltime
+
+    default: {
+      // alltime
       rank =
         (await prisma.userStats.count({
           where: { totalPoints: { gt: user.stats.totalPoints } }
         })) + 1;
-      return { ...commonData, rank, points: user.stats.totalPoints };
+
+      // FIX: Menghitung totalReps all-time untuk myRank
+      const userTotalReps = await prisma.activityHistory.aggregate({
+        _sum: { pointsEarn: true },
+        where: { userId, eventType: 'INDIVIDUAL' }
+      });
+
+      return {
+        ...commonData,
+        rank,
+        points: user.stats.totalPoints,
+        totalReps: userTotalReps._sum.pointsEarn || 0
+      };
+    }
   }
 };
 

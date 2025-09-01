@@ -27,7 +27,7 @@ const adminLogin = catchAsync(async (req, res) => {
   const admin = await authService.loginAdminWithEmailAndPassword(email, password);
   const tokens = await tokenService.generateAuthTokens(admin, 'admin');
   setAuthCookies(res, tokens);
-  res.send({ message: 'Admin login successful', admin, token: tokens.access.token });
+  res.send({ message: 'Admin login successful', admin });
 });
 
 const createUser = catchAsync(async (req, res) => {

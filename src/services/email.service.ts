@@ -61,9 +61,26 @@ If you did not request this, please ignore this email.`;
   await sendEmail(to, subject, text);
 };
 
+/**
+ * Send purchase rejection email
+ * @param {string} to
+ * @param {string} name
+ * @param {string} [reason]
+ * @returns {Promise}
+ */
+const sendPurchaseRejectionEmail = async (to: string, name: string, reason?: string) => {
+  const subject = 'Update on Your Purchase Verification';
+  const reasonText = reason
+    ? `Reason for rejection: ${reason}`
+    : 'Our team has reviewed your submission and, unfortunately, it could not be approved at this time.';
+  const text = `Hi ${name},\n\nWe're writing to inform you about the status of your recent purchase verification submission.\n\n${reasonText}\n\nYou may try submitting your verification again with the correct details.\n\nThank you,\nThe Team`;
+  await sendEmail(to, subject, text);
+};
+
 export default {
   transport,
   sendEmail,
   sendResetPasswordEmail,
-  sendVerificationEmail
+  sendVerificationEmail,
+  sendPurchaseRejectionEmail
 };
