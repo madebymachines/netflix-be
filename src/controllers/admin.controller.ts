@@ -6,6 +6,7 @@ import { AuthTokensResponse } from '../types/response';
 import config from '../config/config';
 import pick from '../utils/pick';
 import { PurchaseStatus } from '@prisma/client';
+import exclude from '../utils/exclude';
 
 const setAuthCookies = (res: Response, tokens: AuthTokensResponse) => {
   res.cookie('accessToken', tokens.access.token, {
@@ -27,7 +28,7 @@ const adminLogin = catchAsync(async (req, res) => {
   const admin = await authService.loginAdminWithEmailAndPassword(email, password);
   const tokens = await tokenService.generateAuthTokens(admin, 'admin');
   setAuthCookies(res, tokens);
-  res.send({ message: 'Admin login successful', admin });
+  res.send({ message: 'Admin login successful', admin: exclude(admin, ['password']) });
 });
 
 const createUser = catchAsync(async (req, res) => {
