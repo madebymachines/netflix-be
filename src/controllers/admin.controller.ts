@@ -74,6 +74,15 @@ const rejectPurchase = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send({ message: 'Purchase verification has been rejected.' });
 });
 
+const getPurchaseVerifications = catchAsync(async (req, res) => {
+  const filter = pick(req.query, ['status', 'userId']);
+  const options = pick(req.query, ['sortBy', 'limit', 'page', 'sortType']);
+  const result = await userService.queryPurchaseVerifications(filter, options);
+  res
+    .status(httpStatus.OK)
+    .send({ message: 'Purchase verifications retrieved successfully', ...result });
+});
+
 export default {
   adminLogin,
   createUser,
@@ -82,5 +91,6 @@ export default {
   updateUser,
   deleteUser,
   approvePurchase,
-  rejectPurchase
+  rejectPurchase,
+  getPurchaseVerifications
 };

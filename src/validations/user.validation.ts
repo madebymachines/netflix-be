@@ -1,3 +1,4 @@
+import { PurchaseStatus } from '@prisma/client';
 import Joi from 'joi';
 import { password } from './custom.validation';
 
@@ -84,6 +85,16 @@ const rejectPurchase = {
   })
 };
 
+const getPurchaseVerifications = {
+  query: Joi.object().keys({
+    status: Joi.string().valid(...Object.values(PurchaseStatus)),
+    page: Joi.number().integer().min(1),
+    limit: Joi.number().integer().min(1).max(100),
+    sortBy: Joi.string().valid('submittedAt', 'reviewedAt'),
+    sortType: Joi.string().valid('asc', 'desc')
+  })
+};
+
 export default {
   createUser,
   getUsers,
@@ -94,5 +105,6 @@ export default {
   uploadPurchaseVerification,
   updateProfilePicture,
   approvePurchase,
-  rejectPurchase
+  rejectPurchase,
+  getPurchaseVerifications
 };

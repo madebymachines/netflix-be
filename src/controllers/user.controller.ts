@@ -28,10 +28,20 @@ const getUsers = catchAsync(async (req, res) => {
 });
 const getMe = catchAsync(async (req, res) => {
   const user = req.user as User;
+
+  const latestVerification = await prisma.purchaseVerification.findFirst({
+    where: { userId: user.id },
+    orderBy: { submittedAt: 'desc' }
+  });
+
+  const purchaseStatus = latestVerification?.status || PurchaseStatus.NOT_VERIFIED;
+
   const userDetails = await userService.getUserById(user.id);
   if (!userDetails) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
   }
+  // Override purchase status with the latest record's status
+  userDetails.purchaseStatus = purchaseStatus;
 
   const [userStats, totalRepsResult] = await Promise.all([
     prisma.userStats.findUnique({ where: { userId: user.id } }),
@@ -138,6 +148,20 @@ const uploadPurchaseVerification = catchAsync(async (req: Request, res) => {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Receipt image is required');
   }
 
+  const existingPending = await prisma.purchaseVerification.findFirst({
+    where: {
+      userId: user.id,
+      status: PurchaseStatus.PENDING
+    }
+  });
+
+  if (existingPending) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'You already have a purchase verification pending review.'
+    );
+  }
+
   const newReceiptImageUrl = await s3Service.uploadFile(
     file.buffer,
     file.originalname,
@@ -146,29 +170,6 @@ const uploadPurchaseVerification = catchAsync(async (req: Request, res) => {
   );
 
   await prisma.$transaction(async (tx) => {
-    const oldVerifications = await tx.purchaseVerification.findMany({
-      where: {
-        userId: user.id,
-        status: {
-          in: [PurchaseStatus.PENDING, PurchaseStatus.REJECTED]
-        }
-      }
-    });
-
-    for (const verification of oldVerifications) {
-      await s3Service.deleteFileByUrl(verification.receiptImageUrl);
-    }
-
-    if (oldVerifications.length > 0) {
-      await tx.purchaseVerification.deleteMany({
-        where: {
-          id: {
-            in: oldVerifications.map((v) => v.id)
-          }
-        }
-      });
-    }
-
     await tx.purchaseVerification.create({
       data: {
         userId: user.id,
@@ -193,27 +194,15 @@ const uploadPurchaseVerification = catchAsync(async (req: Request, res) => {
 const getPurchaseVerificationStatus = catchAsync(async (req, res) => {
   const user = req.user as User;
 
-  const currentUser = await userService.getUserById(user.id, ['purchaseStatus']);
+  const latestVerification = await prisma.purchaseVerification.findFirst({
+    where: { userId: user.id },
+    orderBy: { submittedAt: 'desc' }
+  });
 
-  if (!currentUser) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
-  }
-
-  let latestVerification = null;
-  if (currentUser.purchaseStatus === PurchaseStatus.REJECTED) {
-    latestVerification = await prisma.purchaseVerification.findFirst({
-      where: { userId: user.id },
-      orderBy: { submittedAt: 'desc' }
-    });
-  } else {
-    latestVerification = await prisma.purchaseVerification.findFirst({
-      where: { userId: user.id },
-      orderBy: { submittedAt: 'desc' }
-    });
-  }
+  const status = latestVerification?.status || PurchaseStatus.NOT_VERIFIED;
 
   res.status(httpStatus.OK).send({
-    status: currentUser.purchaseStatus,
+    status,
     submittedAt: latestVerification?.submittedAt || null,
     reviewedAt: latestVerification?.reviewedAt || null,
     reason: latestVerification?.rejectionReason || null

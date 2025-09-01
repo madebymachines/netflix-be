@@ -2,7 +2,7 @@ import httpStatus from 'http-status';
 import catchAsync from '../utils/catchAsync';
 import { authService, userService, tokenService, emailService, activityService } from '../services';
 import exclude from '../utils/exclude';
-import { User } from '@prisma/client';
+import { User, PurchaseStatus } from '@prisma/client';
 import config from '../config/config';
 import { AuthTokensResponse } from '../types/response';
 import { Response } from 'express';
@@ -42,6 +42,14 @@ const login = catchAsync(async (req, res) => {
   const user = await authService.loginUserWithEmailAndPassword(email, password);
   const tokens = await tokenService.generateAuthTokens(user, 'user');
   setAuthCookies(res, tokens);
+
+  const latestVerification = await prisma.purchaseVerification.findFirst({
+    where: { userId: user.id },
+    orderBy: { submittedAt: 'desc' }
+  });
+  const purchaseStatus = latestVerification?.status || PurchaseStatus.NOT_VERIFIED;
+  user.purchaseStatus = purchaseStatus;
+
   const userResponse = exclude(user, ['password']);
 
   const [userStats, totalRepsResult] = await Promise.all([

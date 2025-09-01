@@ -23,6 +23,14 @@ router
 
 // Purchase Verification Management
 router
+  .route('/purchase-verifications')
+  .get(
+    auth('getUsers'),
+    validate(userValidation.getPurchaseVerifications),
+    adminController.getPurchaseVerifications
+  );
+
+router
   .route('/purchase-verifications/:verificationId/approve')
   .patch(
     auth('manageUsers'),

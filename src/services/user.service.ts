@@ -1,4 +1,4 @@
-import { User, Prisma, PurchaseStatus } from '@prisma/client';
+import { User, Prisma, PurchaseStatus, PurchaseVerification } from '@prisma/client';
 import httpStatus from 'http-status';
 import prisma from '../client';
 import ApiError from '../utils/ApiError';
@@ -227,6 +227,67 @@ const reviewPurchaseVerification = async (
   }
 };
 
+/**
+ * Query for purchase verifications (for admin)
+ * @param {Object} filter - Prisma filter
+ * @param {Object} options - Query options
+ * @returns {Promise<object>}
+ */
+const queryPurchaseVerifications = async (
+  filter: { status?: PurchaseStatus; userId?: number },
+  options: {
+    limit?: number;
+    page?: number;
+    sortBy?: string;
+    sortType?: 'asc' | 'desc';
+  }
+): Promise<object> => {
+  const page = options.page ?? 1;
+  const limit = options.limit ?? 10;
+  const sortBy = options.sortBy ?? 'submittedAt';
+  const sortType = options.sortType ?? 'desc';
+
+  const where: Prisma.PurchaseVerificationWhereInput = {};
+  if (filter.status) {
+    where.status = filter.status;
+  }
+  if (filter.userId) {
+    where.userId = filter.userId;
+  }
+
+  const [verifications, totalItems] = await prisma.$transaction([
+    prisma.purchaseVerification.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            username: true
+          }
+        }
+      },
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { [sortBy]: sortType }
+    }),
+    prisma.purchaseVerification.count({ where })
+  ]);
+
+  const totalPages = Math.ceil(totalItems / limit);
+
+  return {
+    data: verifications,
+    pagination: {
+      currentPage: page,
+      limit,
+      totalItems,
+      totalPages
+    }
+  };
+};
+
 export default {
   createUser,
   queryUsers,
@@ -235,5 +296,6 @@ export default {
   getUserByUsername,
   updateUserById,
   deleteUserById,
-  reviewPurchaseVerification
+  reviewPurchaseVerification,
+  queryPurchaseVerifications
 };
