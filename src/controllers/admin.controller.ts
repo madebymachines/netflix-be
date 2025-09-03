@@ -10,16 +10,22 @@ import exclude from '../utils/exclude';
 import ApiError from '../utils/ApiError';
 
 const setAuthCookies = (res: Response, tokens: AuthTokensResponse) => {
-  res.cookie('accessToken', tokens.access.token, {
+  const isProduction = config.env === 'production';
+  const cookieOptions = {
     httpOnly: true,
-    expires: tokens.access.expires,
-    secure: config.env === 'production'
+    secure: isProduction,
+    sameSite: isProduction ? ('none' as const) : ('lax' as const)
+  };
+
+  res.cookie('accessToken', tokens.access.token, {
+    ...cookieOptions,
+    expires: tokens.access.expires
   });
+
   if (tokens.refresh) {
     res.cookie('refreshToken', tokens.refresh.token, {
-      httpOnly: true,
-      expires: tokens.refresh.expires,
-      secure: config.env === 'production'
+      ...cookieOptions,
+      expires: tokens.refresh.expires
     });
   }
 };

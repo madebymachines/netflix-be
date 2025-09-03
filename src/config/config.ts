@@ -6,7 +6,7 @@ dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 const envVarsSchema = Joi.object()
   .keys({
-    NODE_ENV: Joi.string().valid('production', 'development', 'test').required(),
+    APP_ENV: Joi.string().valid('production', 'development', 'test').required(),
     PORT: Joi.number().default(3000),
     CORS_ORIGIN: Joi.string().required().description('URL for CORS'),
     FE_URL: Joi.string().required().description('URL for Frontend App'),
@@ -47,7 +47,7 @@ if (error) {
 }
 
 export default {
-  env: envVars.NODE_ENV,
+  env: envVars.APP_ENV,
   port: envVars.PORT,
   feUrl: envVars.FE_URL,
   cors: {

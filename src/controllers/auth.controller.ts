@@ -10,21 +10,17 @@ import prisma from '../client';
 
 const setAuthCookies = (res: Response, tokens: AuthTokensResponse) => {
   const isProduction = config.env === 'production';
-
-  // Opsi cookie dasar yang akan digunakan bersama
-  const cookieOptions: any = {
+  const cookieOptions = {
     httpOnly: true,
-    secure: isProduction, // Wajib true jika sameSite='none'
-    sameSite: isProduction ? 'none' : 'lax' // 'none' untuk cross-site, 'lax' untuk same-site (dev)
+    secure: isProduction,
+    sameSite: isProduction ? ('none' as const) : ('lax' as const)
   };
 
-  // Set Access Token Cookie
   res.cookie('accessToken', tokens.access.token, {
     ...cookieOptions,
     expires: tokens.access.expires
   });
 
-  // Set Refresh Token Cookie
   if (tokens.refresh) {
     res.cookie('refreshToken', tokens.refresh.token, {
       ...cookieOptions,
