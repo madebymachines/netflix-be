@@ -8,6 +8,11 @@ const router = express.Router();
 
 // Admin Authentication
 router.post('/login', validate(adminValidation.adminLogin), adminController.adminLogin);
+router.post('/logout', adminController.logout); // <-- Rute Logout Baru
+router.post('/refresh-tokens', adminController.refreshTokens); // <-- Rute Refresh Token Baru
+
+// Get current admin profile
+router.get('/me', auth(), adminController.getMe);
 
 // User Management Routes (protected for admins)
 router

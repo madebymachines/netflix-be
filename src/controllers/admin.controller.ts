@@ -5,8 +5,9 @@ import { Response } from 'express';
 import { AuthTokensResponse } from '../types/response';
 import config from '../config/config';
 import pick from '../utils/pick';
-import { PurchaseStatus } from '@prisma/client';
+import { Admin, PurchaseStatus } from '@prisma/client';
 import exclude from '../utils/exclude';
+import ApiError from '../utils/ApiError';
 
 const setAuthCookies = (res: Response, tokens: AuthTokensResponse) => {
   res.cookie('accessToken', tokens.access.token, {
@@ -29,6 +30,32 @@ const adminLogin = catchAsync(async (req, res) => {
   const tokens = await tokenService.generateAuthTokens(admin, 'admin');
   setAuthCookies(res, tokens);
   res.send({ message: 'Admin login successful', admin: exclude(admin, ['password']) });
+});
+
+const getMe = catchAsync(async (req, res) => {
+  const admin = req.user as Admin;
+  res.status(httpStatus.OK).send({ admin });
+});
+
+const logout = catchAsync(async (req, res) => {
+  const { refreshToken } = req.cookies;
+  if (refreshToken) {
+    // Meskipun cookie akan dihapus, kita tetap bisa menghapus token dari DB
+    await authService.logout(refreshToken);
+  }
+  res.clearCookie('accessToken');
+  res.clearCookie('refreshToken');
+  res.status(httpStatus.OK).send({ message: 'Logged out successfully' });
+});
+
+const refreshTokens = catchAsync(async (req, res) => {
+  const { refreshToken } = req.cookies;
+  if (!refreshToken) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate');
+  }
+  const tokens = await authService.refreshAuth(refreshToken);
+  setAuthCookies(res, tokens);
+  res.status(httpStatus.OK).send({ message: 'Tokens refreshed' });
 });
 
 const createUser = catchAsync(async (req, res) => {
@@ -86,6 +113,9 @@ const getPurchaseVerifications = catchAsync(async (req, res) => {
 
 export default {
   adminLogin,
+  getMe,
+  logout,
+  refreshTokens,
   createUser,
   getUsers,
   getUser,

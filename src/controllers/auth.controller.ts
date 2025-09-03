@@ -9,16 +9,26 @@ import { Response } from 'express';
 import prisma from '../client';
 
 const setAuthCookies = (res: Response, tokens: AuthTokensResponse) => {
-  res.cookie('accessToken', tokens.access.token, {
+  const isProduction = config.env === 'production';
+
+  // Opsi cookie dasar yang akan digunakan bersama
+  const cookieOptions: any = {
     httpOnly: true,
-    expires: tokens.access.expires,
-    secure: config.env === 'production'
+    secure: isProduction, // Wajib true jika sameSite='none'
+    sameSite: isProduction ? 'none' : 'lax' // 'none' untuk cross-site, 'lax' untuk same-site (dev)
+  };
+
+  // Set Access Token Cookie
+  res.cookie('accessToken', tokens.access.token, {
+    ...cookieOptions,
+    expires: tokens.access.expires
   });
+
+  // Set Refresh Token Cookie
   if (tokens.refresh) {
     res.cookie('refreshToken', tokens.refresh.token, {
-      httpOnly: true,
-      expires: tokens.refresh.expires,
-      secure: config.env === 'production'
+      ...cookieOptions,
+      expires: tokens.refresh.expires
     });
   }
 };
