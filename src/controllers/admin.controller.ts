@@ -46,11 +46,19 @@ const getMe = catchAsync(async (req, res) => {
 const logout = catchAsync(async (req, res) => {
   const { refreshToken } = req.cookies;
   if (refreshToken) {
-    // Meskipun cookie akan dihapus, kita tetap bisa menghapus token dari DB
     await authService.logout(refreshToken);
   }
-  res.clearCookie('accessToken');
-  res.clearCookie('refreshToken');
+
+  const isProduction = config.env === 'production';
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? ('none' as const) : ('lax' as const)
+  };
+
+  res.clearCookie('accessToken', cookieOptions);
+  res.clearCookie('refreshToken', cookieOptions);
+
   res.status(httpStatus.OK).send({ message: 'Logged out successfully' });
 });
 

@@ -30,8 +30,17 @@ const setAuthCookies = (res: Response, tokens: AuthTokensResponse) => {
 };
 
 const clearAuthCookies = (res: Response) => {
-  res.clearCookie('accessToken');
-  res.clearCookie('refreshToken');
+  const isProduction = config.env === 'production';
+  // Opsi harus persis sama dengan saat cookie di-set, kecuali 'expires'.
+  // Menambahkan path: '/' adalah praktik terbaik untuk memastikan cookie dihapus dari seluruh domain.
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? ('none' as const) : ('lax' as const)
+  };
+
+  res.clearCookie('accessToken', cookieOptions);
+  res.clearCookie('refreshToken', cookieOptions);
 };
 
 const register = catchAsync(async (req, res) => {
