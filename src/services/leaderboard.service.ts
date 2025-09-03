@@ -19,8 +19,8 @@ const getPublicLeaderboard = async (options: {
   const skip = (page - 1) * limit;
 
   if (timespan === 'weekly') {
-    const startOfWeek = moment().startOf('isoWeek').toDate(); // Mulai dari hari Senin 00:00:00
-    const endOfWeek = moment().endOf('isoWeek').toDate(); // Berakhir pada hari Minggu 23:59:59
+    const startOfWeek = moment().startOf('isoWeek').toDate();
+    const endOfWeek = moment().endOf('isoWeek').toDate();
 
     const whereClause: Prisma.ActivityHistoryWhereInput = {
       createdAt: { gte: startOfWeek, lte: endOfWeek }
@@ -33,7 +33,8 @@ const getPublicLeaderboard = async (options: {
       by: ['userId'],
       where: whereClause,
       _sum: { pointsEarn: true },
-      orderBy: { _sum: { pointsEarn: 'desc' } },
+      // PERBAIKAN: Menambahkan tie-breaker berdasarkan userId untuk konsistensi
+      orderBy: [{ _sum: { pointsEarn: 'desc' } }, { userId: 'asc' }],
       skip,
       take: limit
     });
@@ -59,14 +60,13 @@ const getPublicLeaderboard = async (options: {
       return map;
     }, {} as Record<number, typeof users[0]>);
 
-    // FIX: Menghitung totalReps hanya untuk rentang waktu mingguan
     const totalRepsData = await prisma.activityHistory.groupBy({
       by: ['userId'],
       _sum: { pointsEarn: true },
       where: {
         userId: { in: userIds },
         eventType: 'INDIVIDUAL',
-        createdAt: { gte: startOfWeek, lte: endOfWeek } // Ditambahkan filter waktu
+        createdAt: { gte: startOfWeek, lte: endOfWeek }
       }
     });
     const repsMap = totalRepsData.reduce<Record<number, number>>((map, item) => {
@@ -92,38 +92,47 @@ const getPublicLeaderboard = async (options: {
     };
   }
 
-  // Logika untuk 'alltime' dan 'streak'
-  let orderBy: Prisma.UserStatsOrderByWithRelationInput;
+  let orderBy: Prisma.UserStatsOrderByWithRelationInput[];
   switch (timespan) {
     case 'streak':
-      orderBy = { topStreak: 'desc' };
+      // PERBAIKAN: Jika topStreak sama, urutkan berdasarkan siapa yang mencapainya lebih dulu
+      orderBy = [{ topStreak: 'desc' }, { lastUpdated: 'asc' }];
       break;
     default: // alltime
-      orderBy = { totalPoints: 'desc' };
+      // PERBAIKAN: Jika totalPoints sama, urutkan berdasarkan siapa yang mencapainya lebih dulu
+      orderBy = [{ totalPoints: 'desc' }, { lastUpdated: 'asc' }];
       break;
   }
 
-  const where: Prisma.UserWhereInput = {};
+  const whereUserStats: Prisma.UserStatsWhereInput = {};
   if (region) {
-    where.country = region;
+    whereUserStats.user = { country: region };
   }
 
-  const totalItems = await prisma.user.count({ where });
+  const totalItems = await prisma.userStats.count({ where: whereUserStats });
   const totalPages = Math.ceil(totalItems / limit);
 
-  const usersWithStats = await prisma.user.findMany({
-    where,
-    include: { stats: true },
-    orderBy: { stats: orderBy },
+  const userStats = await prisma.userStats.findMany({
+    where: whereUserStats,
+    include: {
+      user: {
+        select: {
+          id: true,
+          username: true,
+          profilePictureUrl: true,
+          country: true
+        }
+      }
+    },
+    orderBy: orderBy,
     skip,
     take: limit
   });
 
-  const userIds = usersWithStats.map((u) => u.id);
+  const userIds = userStats.map((s) => s.userId);
   let repsMap: Record<number, number> = {};
 
-  // FIX: Hanya hitung totalReps jika timespan adalah 'alltime'
-  if (timespan === 'alltime') {
+  if (timespan === 'alltime' && userIds.length > 0) {
     const totalRepsData = await prisma.activityHistory.groupBy({
       by: ['userId'],
       _sum: { pointsEarn: true },
@@ -135,29 +144,33 @@ const getPublicLeaderboard = async (options: {
     }, {});
   }
 
-  const leaderboard = usersWithStats.map((user, index) => {
-    const rank = skip + index + 1;
-    const commonData = {
-      rank,
-      username: user.username,
-      profilePictureUrl: user.profilePictureUrl,
-      country: user.country
-    };
+  const leaderboard = userStats
+    .map((stat, index) => {
+      const rank = skip + index + 1;
+      if (!stat.user) {
+        return null;
+      }
+      const commonData = {
+        rank,
+        username: stat.user.username,
+        profilePictureUrl: stat.user.profilePictureUrl,
+        country: stat.user.country
+      };
 
-    if (timespan === 'streak') {
+      if (timespan === 'streak') {
+        return {
+          ...commonData,
+          streak: stat.topStreak || 0
+        };
+      }
+
       return {
         ...commonData,
-        streak: user.stats?.topStreak || 0
+        points: stat.totalPoints || 0,
+        totalReps: repsMap[stat.userId] || 0
       };
-    }
-
-    // Default to 'alltime'
-    return {
-      ...commonData,
-      points: user.stats?.totalPoints || 0,
-      totalReps: repsMap[user.id] || 0
-    };
-  });
+    })
+    .filter(Boolean);
 
   return {
     pagination: {
@@ -207,7 +220,6 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
     const baseResponse = { ...commonData, rank: 0 };
     if (timespan === 'streak') return { ...baseResponse, streak: 0 };
 
-    // Untuk alltime/weekly tanpa stats, points adalah 0, totalReps harus dihitung
     let totalReps = 0;
     if (timespan === 'alltime' || timespan === 'weekly') {
       totalReps =
@@ -234,15 +246,26 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
       });
       const userScore = userWeeklyPoints._sum.pointsEarn || 0;
 
-      const rankAggregate = await prisma.activityHistory.groupBy({
+      // Logika untuk menghitung peringkat dengan tie-breaking
+      const allScores = await prisma.activityHistory.groupBy({
         by: ['userId'],
         where: { createdAt: { gte: startOfWeek, lte: endOfWeek } },
         _sum: { pointsEarn: true },
-        having: { pointsEarn: { _sum: { gt: userScore } } }
+        orderBy: [
+          {
+            _sum: {
+              pointsEarn: 'desc'
+            }
+          },
+          {
+            userId: 'asc'
+          }
+        ]
       });
-      rank = rankAggregate.length + 1;
 
-      // FIX: Menghitung totalReps mingguan untuk myRank
+      const userRankIndex = allScores.findIndex((score) => score.userId === userId);
+      rank = userRankIndex !== -1 ? userRankIndex + 1 : allScores.length + 1;
+
       const userWeeklyReps = await prisma.activityHistory.aggregate({
         _sum: { pointsEarn: true },
         where: {
@@ -262,7 +285,15 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
     case 'streak':
       rank =
         (await prisma.userStats.count({
-          where: { topStreak: { gt: user.stats.topStreak } }
+          where: {
+            OR: [
+              { topStreak: { gt: user.stats.topStreak } },
+              {
+                topStreak: user.stats.topStreak,
+                lastUpdated: { lt: user.stats.lastUpdated }
+              }
+            ]
+          }
         })) + 1;
       return { ...commonData, rank, streak: user.stats.topStreak };
 
@@ -270,10 +301,17 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
       // alltime
       rank =
         (await prisma.userStats.count({
-          where: { totalPoints: { gt: user.stats.totalPoints } }
+          where: {
+            OR: [
+              { totalPoints: { gt: user.stats.totalPoints } },
+              {
+                totalPoints: user.stats.totalPoints,
+                lastUpdated: { lt: user.stats.lastUpdated }
+              }
+            ]
+          }
         })) + 1;
 
-      // FIX: Menghitung totalReps all-time untuk myRank
       const userTotalReps = await prisma.activityHistory.aggregate({
         _sum: { pointsEarn: true },
         where: { userId, eventType: 'INDIVIDUAL' }

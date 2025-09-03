@@ -5,7 +5,7 @@ const register = {
   body: Joi.object().keys({
     name: Joi.string().required(),
     username: Joi.string().required(),
-    email: Joi.string().required().email(),
+    email: Joi.string().required().email().lowercase(),
     password: Joi.string().required().custom(password),
     phoneNumber: Joi.string().required(),
     country: Joi.string().required().valid('SG', 'TH', 'MY')
@@ -14,7 +14,7 @@ const register = {
 
 const login = {
   body: Joi.object().keys({
-    email: Joi.string().required(),
+    email: Joi.string().required().email().lowercase(),
     password: Joi.string().required()
   })
 };
@@ -37,7 +37,7 @@ const refreshTokens = {
 
 const forgotPassword = {
   body: Joi.object().keys({
-    email: Joi.string().email().required()
+    email: Joi.string().email().required().lowercase()
   })
 };
 
@@ -52,14 +52,14 @@ const resetPassword = {
 
 const verifyEmail = {
   body: Joi.object().keys({
-    email: Joi.string().email().required(),
+    email: Joi.string().email().required().lowercase(),
     otp: Joi.string().required().length(6)
   })
 };
 
 const resendVerificationEmail = {
   body: Joi.object().keys({
-    email: Joi.string().email().required()
+    email: Joi.string().email().required().lowercase()
   })
 };
 

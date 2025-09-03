@@ -4,7 +4,7 @@ import { password } from './custom.validation';
 
 const createUser = {
   body: Joi.object().keys({
-    email: Joi.string().required().email(),
+    email: Joi.string().required().email().lowercase(),
     password: Joi.string().required().custom(password),
     name: Joi.string().required(),
     username: Joi.string().required(),
@@ -34,7 +34,7 @@ const updateUser = {
   }),
   body: Joi.object()
     .keys({
-      email: Joi.string().email(),
+      email: Joi.string().email().lowercase(),
       password: Joi.string().custom(password),
       name: Joi.string(),
       username: Joi.string(),
