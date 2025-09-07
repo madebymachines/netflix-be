@@ -78,10 +78,10 @@ const createUser = catchAsync(async (req, res) => {
 });
 
 const getUsers = catchAsync(async (req, res) => {
-  const filter = pick(req.query, ['name']);
+  const filter = pick(req.query, ['name', 'isBanned']);
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
   const result = await userService.queryUsers(filter, options);
-  res.send({ message: 'Users retrieved successfully', data: result });
+  res.send({ message: 'Users retrieved successfully', ...result });
 });
 
 const getUser = catchAsync(async (req, res) => {
@@ -125,6 +125,39 @@ const getPurchaseVerifications = catchAsync(async (req, res) => {
     .send({ message: 'Purchase verifications retrieved successfully', ...result });
 });
 
+const getDashboardStats = catchAsync(async (req, res) => {
+  const stats = await userService.getDashboardStats();
+  res.status(httpStatus.OK).send({ message: 'Stats retrieved successfully', data: stats });
+});
+
+const getUserGrowthChartData = catchAsync(async (req, res) => {
+  const days = req.query.days ? parseInt(req.query.days as string) : 30;
+  const data = await userService.getUserGrowthStats(days);
+  res.status(httpStatus.OK).send({ message: 'User growth data retrieved', data });
+});
+
+const getUserDetails = catchAsync(async (req, res) => {
+  const { userId } = req.params;
+  const userDetails = await userService.getUserDetailsById(parseInt(userId));
+  res.status(httpStatus.OK).send({ message: 'User details retrieved', data: userDetails });
+});
+
+const banUser = catchAsync(async (req, res) => {
+  const { userId } = req.params;
+  const { reason } = req.body;
+  if (!reason) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Ban reason is required');
+  }
+  await userService.banUserById(parseInt(userId), reason);
+  res.status(httpStatus.OK).send({ message: 'User has been banned successfully.' });
+});
+
+const unbanUser = catchAsync(async (req, res) => {
+  const { userId } = req.params;
+  await userService.unbanUserById(parseInt(userId));
+  res.status(httpStatus.OK).send({ message: 'User has been unbanned successfully.' });
+});
+
 export default {
   adminLogin,
   getMe,
@@ -137,5 +170,10 @@ export default {
   deleteUser,
   approvePurchase,
   rejectPurchase,
-  getPurchaseVerifications
+  getPurchaseVerifications,
+  getDashboardStats,
+  getUserGrowthChartData,
+  getUserDetails,
+  banUser,
+  unbanUser
 };

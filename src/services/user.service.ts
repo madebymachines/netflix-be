@@ -4,6 +4,7 @@ import prisma from '../client';
 import ApiError from '../utils/ApiError';
 import { encryptPassword } from '../utils/encryption';
 import emailService from './email.service';
+import moment from 'moment';
 
 /**
  * Get user by username
@@ -13,7 +14,15 @@ import emailService from './email.service';
  */
 const getUserByUsername = async <Key extends keyof User>(
   username: string,
-  keys: Key[] = ['id', 'email', 'name', 'purchaseStatus', 'createdAt', 'updatedAt'] as Key[]
+  keys: Key[] = [
+    'id',
+    'email',
+    'name',
+    'isBanned',
+    'purchaseStatus',
+    'createdAt',
+    'updatedAt'
+  ] as Key[]
 ): Promise<Pick<User, Key> | null> => {
   return prisma.user.findUnique({
     where: { username },
@@ -58,28 +67,51 @@ const createUser = async (userBody: {
  * @param {Object} options - Query options
  * @returns {Promise<QueryResult>}
  */
-const queryUsers = async <Key extends keyof User>(
-  filter: object,
+const queryUsers = async (
+  filter: { name?: string; isBanned?: string },
   options: {
     limit?: number;
     page?: number;
     sortBy?: string;
     sortType?: 'asc' | 'desc';
-  },
-  keys: Key[] = ['id', 'email', 'name', 'purchaseStatus', 'createdAt', 'updatedAt'] as Key[]
-): Promise<Pick<User, Key>[]> => {
+  }
+) => {
   const page = options.page ?? 1;
   const limit = options.limit ?? 10;
-  const sortBy = options.sortBy;
+  const sortBy = options.sortBy ?? 'createdAt';
   const sortType = options.sortType ?? 'desc';
-  const users = await prisma.user.findMany({
-    where: filter,
-    select: keys.reduce((obj, k) => ({ ...obj, [k]: true }), {}),
-    skip: (page - 1) * limit,
-    take: limit,
-    orderBy: sortBy ? { [sortBy]: sortType } : undefined
-  });
-  return users as Pick<User, Key>[];
+
+  const where: Prisma.UserWhereInput = {};
+  if (filter.name) {
+    where.name = { contains: filter.name, mode: 'insensitive' };
+  }
+  if (filter.isBanned && ['true', 'false'].includes(filter.isBanned)) {
+    where.isBanned = filter.isBanned === 'true';
+  }
+
+  const [users, totalItems] = await prisma.$transaction([
+    prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        username: true,
+        country: true,
+        isBanned: true,
+        purchaseStatus: true,
+        createdAt: true
+      },
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { [sortBy]: sortType }
+    }),
+    prisma.user.count({ where })
+  ]);
+
+  const totalPages = Math.ceil(totalItems / limit);
+
+  return { data: users, pagination: { currentPage: page, limit, totalItems, totalPages } };
 };
 
 /**
@@ -98,7 +130,10 @@ const getUserById = async <Key extends keyof User>(
     'phoneNumber',
     'profilePictureUrl',
     'country',
-    'purchaseStatus'
+    'purchaseStatus',
+    'isBanned',
+    'bannedAt',
+    'banReason'
   ] as Key[]
 ): Promise<Pick<User, Key> | null> => {
   return prisma.user.findUnique({
@@ -115,6 +150,9 @@ const getUserByEmail = async <Key extends keyof User>(
     'name',
     'password',
     'emailVerifiedAt',
+    'isBanned',
+    'bannedAt',
+    'banReason',
     'createdAt',
     'updatedAt'
   ] as Key[]
@@ -288,6 +326,126 @@ const queryPurchaseVerifications = async (
   };
 };
 
+const banUserById = async (userId: number, reason: string): Promise<User> => {
+  const user = await getUserById(userId);
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+  }
+  if (user.isBanned) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'User is already banned');
+  }
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      isBanned: true,
+      bannedAt: new Date(),
+      banReason: reason
+    }
+  });
+  return updatedUser;
+};
+
+const unbanUserById = async (userId: number): Promise<User> => {
+  const user = await getUserById(userId);
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+  }
+  if (!user.isBanned) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'User is not banned');
+  }
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      isBanned: false,
+      bannedAt: null,
+      banReason: null
+    }
+  });
+  return updatedUser;
+};
+
+const getDashboardStats = async () => {
+  const sevenDaysAgo = moment().subtract(7, 'days').toDate();
+
+  const [totalUsers, newUsers, approvedVerifications, rejectedVerifications] = await Promise.all([
+    prisma.user.count(),
+    prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+    prisma.purchaseVerification.count({ where: { status: 'APPROVED' } }),
+    prisma.purchaseVerification.count({ where: { status: 'REJECTED' } })
+  ]);
+
+  return {
+    totalUsers,
+    newUsers,
+    approvedVerifications,
+    rejectedVerifications
+  };
+};
+
+const getUserGrowthStats = async (days: number = 30) => {
+  const endDate = moment().endOf('day').toDate();
+  const startDate = moment()
+    .subtract(days - 1, 'days')
+    .startOf('day')
+    .toDate();
+
+  const results = await prisma.user.groupBy({
+    by: ['createdAt'],
+    where: {
+      createdAt: {
+        gte: startDate,
+        lte: endDate
+      }
+    },
+    _count: {
+      id: true
+    }
+  });
+
+  // Post-process to group by day
+  const dailyCounts = new Map<string, number>();
+  results.forEach((result) => {
+    const day = moment(result.createdAt).format('YYYY-MM-DD');
+    dailyCounts.set(day, (dailyCounts.get(day) || 0) + result._count.id);
+  });
+
+  // Fill in missing days with 0 counts
+  const finalData = [];
+  for (let i = 0; i < days; i++) {
+    const date = moment(startDate).add(i, 'days');
+    const dateString = date.format('YYYY-MM-DD');
+    finalData.push({
+      date: dateString,
+      count: dailyCounts.get(dateString) || 0
+    });
+  }
+
+  return finalData;
+};
+
+const getUserDetailsById = async (userId: number) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      stats: true,
+      activityHistory: {
+        orderBy: { createdAt: 'desc' },
+        take: 10
+      },
+      purchaseVerifications: {
+        orderBy: { submittedAt: 'desc' },
+        take: 10
+      }
+    }
+  });
+
+  if (!user) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+  }
+
+  return user;
+};
+
 export default {
   createUser,
   queryUsers,
@@ -297,5 +455,10 @@ export default {
   updateUserById,
   deleteUserById,
   reviewPurchaseVerification,
-  queryPurchaseVerifications
+  queryPurchaseVerifications,
+  banUserById,
+  unbanUserById,
+  getDashboardStats,
+  getUserGrowthStats,
+  getUserDetailsById
 };

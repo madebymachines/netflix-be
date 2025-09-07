@@ -16,6 +16,7 @@ const createUser = {
 const getUsers = {
   query: Joi.object().keys({
     name: Joi.string(),
+    isBanned: Joi.string().valid('true', 'false'),
     sortBy: Joi.string(),
     limit: Joi.number().integer(),
     page: Joi.number().integer()
@@ -95,6 +96,21 @@ const getPurchaseVerifications = {
   })
 };
 
+const banUser = {
+  params: Joi.object().keys({
+    userId: Joi.number().integer().required()
+  }),
+  body: Joi.object().keys({
+    reason: Joi.string().required().min(5)
+  })
+};
+
+const unbanUser = {
+  params: Joi.object().keys({
+    userId: Joi.number().integer().required()
+  })
+};
+
 export default {
   createUser,
   getUsers,
@@ -106,5 +122,7 @@ export default {
   updateProfilePicture,
   approvePurchase,
   rejectPurchase,
-  getPurchaseVerifications
+  getPurchaseVerifications,
+  banUser,
+  unbanUser
 };

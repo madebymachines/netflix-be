@@ -27,11 +27,17 @@ const loginUserWithEmailAndPassword = async (email: string, password: string): P
     'purchaseStatus',
     'password',
     'emailVerifiedAt',
+    'isBanned',
+    'bannedAt', // Ditambahkan
+    'banReason', // Ditambahkan
     'createdAt',
     'updatedAt'
   ]);
   if (!user || !(await isPasswordMatch(password, user.password as string))) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Incorrect email or password');
+  }
+  if (user.isBanned) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Your account has been banned.');
   }
   if (!user.emailVerifiedAt) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Email not verified');
@@ -75,6 +81,7 @@ const refreshAuth = async (refreshToken: string): Promise<AuthTokensResponse> =>
     if (refreshTokenData.userId) {
       const user = await userService.getUserById(refreshTokenData.userId);
       if (!user) throw new ApiError(httpStatus.UNAUTHORIZED, 'User not found');
+      if (user.isBanned) throw new ApiError(httpStatus.UNAUTHORIZED, 'User is banned');
       return tokenService.generateAuthTokens(user, 'user');
     }
 
@@ -112,7 +119,6 @@ const resetPassword = async (resetPasswordToken: string, newPassword: string): P
   }
 };
 
-// FIX: Implementasi lengkap
 const verifyEmail = async (email: string, otp: string): Promise<User> => {
   try {
     const user = await userService.getUserByEmail(email);
@@ -151,7 +157,6 @@ const verifyEmail = async (email: string, otp: string): Promise<User> => {
   }
 };
 
-// FIX: Implementasi lengkap
 const resendVerificationEmail = async (email: string): Promise<void> => {
   const user = await userService.getUserByEmail(email);
   if (!user) {
