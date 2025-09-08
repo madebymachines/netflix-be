@@ -1,4 +1,4 @@
-import { PurchaseStatus } from '@prisma/client';
+import { PurchaseStatus, PurchaseType } from '@prisma/client';
 import Joi from 'joi';
 import { password } from './custom.validation';
 
@@ -89,6 +89,8 @@ const rejectPurchase = {
 const getPurchaseVerifications = {
   query: Joi.object().keys({
     status: Joi.string().valid(...Object.values(PurchaseStatus)),
+    type: Joi.string().valid(...Object.values(PurchaseType)),
+    nameOrEmail: Joi.string(),
     page: Joi.number().integer().min(1),
     limit: Joi.number().integer().min(1).max(100),
     sortBy: Joi.string().valid('submittedAt', 'reviewedAt'),

@@ -117,7 +117,7 @@ const rejectPurchase = catchAsync(async (req, res) => {
 });
 
 const getPurchaseVerifications = catchAsync(async (req, res) => {
-  const filter = pick(req.query, ['status', 'userId']);
+  const filter = pick(req.query, ['status', 'type', 'nameOrEmail']);
   const options = pick(req.query, ['sortBy', 'limit', 'page', 'sortType']);
   const result = await userService.queryPurchaseVerifications(filter, options);
   res

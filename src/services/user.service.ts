@@ -1,4 +1,4 @@
-import { User, Prisma, PurchaseStatus, PurchaseVerification } from '@prisma/client';
+import { User, Prisma, PurchaseStatus, PurchaseVerification, PurchaseType } from '@prisma/client';
 import httpStatus from 'http-status';
 import prisma from '../client';
 import ApiError from '../utils/ApiError';
@@ -272,7 +272,11 @@ const reviewPurchaseVerification = async (
  * @returns {Promise<object>}
  */
 const queryPurchaseVerifications = async (
-  filter: { status?: PurchaseStatus; userId?: number },
+  filter: {
+    status?: PurchaseStatus;
+    type?: PurchaseType;
+    nameOrEmail?: string;
+  },
   options: {
     limit?: number;
     page?: number;
@@ -289,8 +293,16 @@ const queryPurchaseVerifications = async (
   if (filter.status) {
     where.status = filter.status;
   }
-  if (filter.userId) {
-    where.userId = filter.userId;
+  if (filter.type) {
+    where.type = filter.type;
+  }
+  if (filter.nameOrEmail) {
+    where.user = {
+      OR: [
+        { name: { contains: filter.nameOrEmail, mode: 'insensitive' } },
+        { email: { contains: filter.nameOrEmail, mode: 'insensitive' } }
+      ]
+    };
   }
 
   const [verifications, totalItems] = await prisma.$transaction([
@@ -367,18 +379,21 @@ const unbanUserById = async (userId: number): Promise<User> => {
 const getDashboardStats = async () => {
   const sevenDaysAgo = moment().subtract(7, 'days').toDate();
 
-  const [totalUsers, newUsers, approvedVerifications, rejectedVerifications] = await Promise.all([
-    prisma.user.count(),
-    prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
-    prisma.purchaseVerification.count({ where: { status: 'APPROVED' } }),
-    prisma.purchaseVerification.count({ where: { status: 'REJECTED' } })
-  ]);
+  const [totalUsers, newUsers, approvedVerifications, rejectedVerifications, pendingVerifications] =
+    await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+      prisma.purchaseVerification.count({ where: { status: 'APPROVED' } }),
+      prisma.purchaseVerification.count({ where: { status: 'REJECTED' } }),
+      prisma.purchaseVerification.count({ where: { status: 'PENDING' } })
+    ]);
 
   return {
     totalUsers,
     newUsers,
     approvedVerifications,
-    rejectedVerifications
+    rejectedVerifications,
+    pendingVerifications
   };
 };
 
