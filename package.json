@@ -21,7 +21,7 @@
     "docker:dev-db:start": "docker-compose -f docker-compose.only-db-dev.yml up -d",
     "docker:dev-db:stop": "docker-compose -f docker-compose.only-db-dev.yml down",
     "prepare": "husky install",
-    "build": "yarn rimraf build && tsc -p tsconfig.json"
+    "build": "yarn prisma generate && yarn rimraf build && tsc -p tsconfig.json"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
