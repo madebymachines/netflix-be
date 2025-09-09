@@ -29,6 +29,7 @@ const getPublicLeaderboard = async (options: {
 
     const whereClause: Prisma.ActivityHistoryWhereInput = {
       user: userFilter,
+      status: { in: ['APPROVED', 'PENDING'] }, // DIUBAH: Sertakan PENDING
       createdAt: { gte: startOfWeek, lte: endOfWeek }
     };
 
@@ -68,6 +69,7 @@ const getPublicLeaderboard = async (options: {
       where: {
         userId: { in: userIds },
         eventType: 'INDIVIDUAL',
+        status: { in: ['APPROVED', 'PENDING'] }, // DIUBAH: Sertakan PENDING
         createdAt: { gte: startOfWeek, lte: endOfWeek }
       }
     });
@@ -140,7 +142,11 @@ const getPublicLeaderboard = async (options: {
     const totalRepsData = await prisma.activityHistory.groupBy({
       by: ['userId'],
       _sum: { pointsEarn: true },
-      where: { userId: { in: userIds }, eventType: 'INDIVIDUAL' }
+      where: {
+        userId: { in: userIds },
+        eventType: 'INDIVIDUAL',
+        status: { in: ['APPROVED', 'PENDING'] }
+      } // DIUBAH: Sertakan PENDING
     });
     repsMap = totalRepsData.reduce<Record<number, number>>((map, item) => {
       map[item.userId] = item._sum.pointsEarn || 0;
@@ -229,7 +235,7 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
         (
           await prisma.activityHistory.aggregate({
             _sum: { pointsEarn: true },
-            where: { userId, eventType: 'INDIVIDUAL' }
+            where: { userId, eventType: 'INDIVIDUAL', status: { in: ['APPROVED', 'PENDING'] } } // DIUBAH: Sertakan PENDING
           })
         )._sum.pointsEarn || 0;
     }
@@ -245,7 +251,11 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
 
       const userWeeklyPoints = await prisma.activityHistory.aggregate({
         _sum: { pointsEarn: true },
-        where: { userId, createdAt: { gte: startOfWeek, lte: endOfWeek } }
+        where: {
+          userId,
+          status: { in: ['APPROVED', 'PENDING'] },
+          createdAt: { gte: startOfWeek, lte: endOfWeek }
+        } // DIUBAH: Sertakan PENDING
       });
       const userScore = userWeeklyPoints._sum.pointsEarn || 0;
 
@@ -253,6 +263,7 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
         by: ['userId'],
         where: {
           user: { isBanned: false },
+          status: { in: ['APPROVED', 'PENDING'] }, // DIUBAH: Sertakan PENDING
           createdAt: { gte: startOfWeek, lte: endOfWeek }
         },
         _sum: { pointsEarn: true },
@@ -267,6 +278,7 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
         where: {
           userId,
           eventType: 'INDIVIDUAL',
+          status: { in: ['APPROVED', 'PENDING'] }, // DIUBAH: Sertakan PENDING
           createdAt: { gte: startOfWeek, lte: endOfWeek }
         }
       });
@@ -312,7 +324,7 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
 
       const userTotalReps = await prisma.activityHistory.aggregate({
         _sum: { pointsEarn: true },
-        where: { userId, eventType: 'INDIVIDUAL' }
+        where: { userId, eventType: 'INDIVIDUAL', status: { in: ['APPROVED', 'PENDING'] } } // DIUBAH: Sertakan PENDING
       });
 
       return {

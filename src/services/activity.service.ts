@@ -1,4 +1,4 @@
-import { Prisma, User } from '@prisma/client';
+import { Prisma, PurchaseStatus } from '@prisma/client';
 import prisma from '../client';
 import moment from 'moment';
 import s3Service from './s3.service';
@@ -65,7 +65,7 @@ const saveActivity = async (
       isTopStreakUpdated = true;
     }
 
-    // 3. Perbarui UserStats
+    // 3. Perbarui UserStats (Poin ditambahkan di awal)
     const updatedStats = await tx.userStats.update({
       where: { userId },
       data: {
@@ -76,7 +76,7 @@ const saveActivity = async (
       }
     });
 
-    // 4. Buat entri ActivityHistory
+    // 4. Buat entri ActivityHistory dengan status PENDING
     await tx.activityHistory.create({
       data: {
         userId,
@@ -84,12 +84,13 @@ const saveActivity = async (
         pointsEarn,
         pointsFrom: userStats.totalPoints,
         pointsTo: updatedStats.totalPoints,
-        submissionImageUrl: imageUrl
+        submissionImageUrl: imageUrl,
+        status: PurchaseStatus.PENDING
       }
     });
 
     return {
-      message: 'Activity saved successfully.',
+      message: 'Activity saved and is pending review.',
       pointsEarned: pointsEarn,
       streakStatus: {
         currentStreak: updatedStats.currentStreak,
@@ -97,6 +98,116 @@ const saveActivity = async (
       }
     };
   });
+};
+
+const reviewActivitySubmission = async (
+  activityId: number,
+  status: 'APPROVED' | 'REJECTED',
+  rejectionReason?: string
+) => {
+  const activity = await prisma.activityHistory.findUnique({
+    where: { id: activityId }
+  });
+
+  if (!activity) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Activity submission not found');
+  }
+
+  if (activity.status !== PurchaseStatus.PENDING) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      `This submission has already been ${activity.status.toLowerCase()}`
+    );
+  }
+
+  if (status === PurchaseStatus.REJECTED) {
+    await prisma.$transaction(async (tx) => {
+      // Kurangi poin pengguna jika di-reject
+      await tx.userStats.update({
+        where: { userId: activity.userId },
+        data: {
+          totalPoints: {
+            decrement: activity.pointsEarn
+          }
+        }
+      });
+
+      // Perbarui status aktivitas
+      await tx.activityHistory.update({
+        where: { id: activityId },
+        data: {
+          status: PurchaseStatus.REJECTED,
+          rejectionReason,
+          reviewedAt: new Date()
+        }
+      });
+    });
+  } else {
+    // Jika di-approve, hanya perbarui statusnya
+    await prisma.activityHistory.update({
+      where: { id: activityId },
+      data: {
+        status: PurchaseStatus.APPROVED,
+        reviewedAt: new Date()
+      }
+    });
+  }
+};
+
+const queryActivitySubmissions = async (
+  filter: { status?: PurchaseStatus; nameOrEmail?: string },
+  options: {
+    limit?: number;
+    page?: number;
+    sortBy?: string;
+    sortType?: 'asc' | 'desc';
+  }
+) => {
+  const page = options.page ?? 1;
+  const limit = options.limit ?? 10;
+  const sortBy = options.sortBy ?? 'createdAt';
+  const sortType = options.sortType ?? 'desc';
+
+  const where: Prisma.ActivityHistoryWhereInput = {};
+  const userFilter: Prisma.UserWhereInput = { isBanned: false };
+
+  if (filter.status) {
+    where.status = filter.status;
+  }
+  if (filter.nameOrEmail) {
+    userFilter.OR = [
+      { name: { contains: filter.nameOrEmail, mode: 'insensitive' } },
+      { email: { contains: filter.nameOrEmail, mode: 'insensitive' } }
+    ];
+  }
+
+  where.user = userFilter;
+
+  const [submissions, totalItems] = await prisma.$transaction([
+    prisma.activityHistory.findMany({
+      where,
+      include: {
+        user: {
+          select: { name: true, email: true }
+        }
+      },
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { [sortBy]: sortType }
+    }),
+    prisma.activityHistory.count({ where })
+  ]);
+
+  const totalPages = Math.ceil(totalItems / limit);
+  return {
+    data: submissions,
+    pagination: {
+      currentPage: page,
+      limit,
+      totalItems,
+      totalPages
+    }
+  };
 };
 
 /**
@@ -145,7 +256,8 @@ const getUserIndividualReps = async (userId: number): Promise<number> => {
     },
     where: {
       userId,
-      eventType: 'INDIVIDUAL'
+      eventType: 'INDIVIDUAL',
+      status: { in: ['APPROVED', 'PENDING'] } // DIUBAH: Sertakan PENDING
     }
   });
   return result._sum.pointsEarn || 0;
@@ -154,5 +266,7 @@ const getUserIndividualReps = async (userId: number): Promise<number> => {
 export default {
   saveActivity,
   getActivityHistory,
-  getUserIndividualReps
+  getUserIndividualReps,
+  reviewActivitySubmission,
+  queryActivitySubmissions
 };

@@ -383,6 +383,7 @@ const getDashboardStats = async () => {
   const sevenDaysAgo = moment().subtract(7, 'days').toDate();
   const whereNotBanned = { where: { isBanned: false } };
   const whereVerificationNotBanned = { where: { user: { isBanned: false } } };
+  const whereActivityNotBanned = { where: { user: { isBanned: false } } };
 
   const [
     totalUsers,
@@ -390,7 +391,10 @@ const getDashboardStats = async () => {
     approvedVerifications,
     rejectedVerifications,
     pendingVerifications,
-    blockedUsers
+    blockedUsers,
+    pendingSubmissions,
+    approvedSubmissions,
+    rejectedSubmissions
   ] = await Promise.all([
     prisma.user.count(whereNotBanned),
     prisma.user.count({ where: { isBanned: false, createdAt: { gte: sevenDaysAgo } } }),
@@ -403,7 +407,12 @@ const getDashboardStats = async () => {
     prisma.purchaseVerification.count({
       where: { status: 'PENDING', ...whereVerificationNotBanned.where }
     }),
-    prisma.user.count({ where: { isBanned: true } })
+    prisma.user.count({ where: { isBanned: true } }),
+    prisma.activityHistory.count({ where: { status: 'PENDING', ...whereActivityNotBanned.where } }),
+    prisma.activityHistory.count({
+      where: { status: 'APPROVED', ...whereActivityNotBanned.where }
+    }),
+    prisma.activityHistory.count({ where: { status: 'REJECTED', ...whereActivityNotBanned.where } })
   ]);
 
   return {
@@ -412,7 +421,10 @@ const getDashboardStats = async () => {
     approvedVerifications,
     rejectedVerifications,
     pendingVerifications,
-    blockedUsers
+    blockedUsers,
+    pendingSubmissions,
+    approvedSubmissions,
+    rejectedSubmissions
   };
 };
 

@@ -1,6 +1,6 @@
 import httpStatus from 'http-status';
 import catchAsync from '../utils/catchAsync';
-import { authService, userService, tokenService } from '../services';
+import { authService, userService, tokenService, activityService } from '../services';
 import { Response } from 'express';
 import { AuthTokensResponse } from '../types/response';
 import config from '../config/config';
@@ -158,6 +158,28 @@ const unbanUser = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send({ message: 'User has been unbanned successfully.' });
 });
 
+const getActivitySubmissions = catchAsync(async (req, res) => {
+  const filter = pick(req.query, ['status', 'nameOrEmail']);
+  const options = pick(req.query, ['sortBy', 'limit', 'page', 'sortType']);
+  const result = await activityService.queryActivitySubmissions(filter, options);
+  res
+    .status(httpStatus.OK)
+    .send({ message: 'Activity submissions retrieved successfully', ...result });
+});
+
+const approveActivitySubmission = catchAsync(async (req, res) => {
+  const { activityId } = req.params;
+  await activityService.reviewActivitySubmission(parseInt(activityId), 'APPROVED');
+  res.status(httpStatus.OK).send({ message: 'Activity submission has been approved.' });
+});
+
+const rejectActivitySubmission = catchAsync(async (req, res) => {
+  const { activityId } = req.params;
+  const { rejectionReason } = req.body;
+  await activityService.reviewActivitySubmission(parseInt(activityId), 'REJECTED', rejectionReason);
+  res.status(httpStatus.OK).send({ message: 'Activity submission has been rejected.' });
+});
+
 export default {
   adminLogin,
   getMe,
@@ -175,5 +197,8 @@ export default {
   getUserGrowthChartData,
   getUserDetails,
   banUser,
-  unbanUser
+  unbanUser,
+  getActivitySubmissions,
+  approveActivitySubmission,
+  rejectActivitySubmission
 };

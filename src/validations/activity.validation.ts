@@ -1,3 +1,4 @@
+import { PurchaseStatus } from '@prisma/client';
 import Joi from 'joi';
 
 const saveActivity = {
@@ -14,7 +15,36 @@ const getActivityHistory = {
   })
 };
 
+const getActivitySubmissions = {
+  query: Joi.object().keys({
+    status: Joi.string().valid(...Object.values(PurchaseStatus)),
+    nameOrEmail: Joi.string(),
+    page: Joi.number().integer().min(1),
+    limit: Joi.number().integer().min(1).max(100),
+    sortBy: Joi.string().valid('createdAt', 'reviewedAt'),
+    sortType: Joi.string().valid('asc', 'desc')
+  })
+};
+
+const approveActivitySubmission = {
+  params: Joi.object().keys({
+    activityId: Joi.number().integer().required()
+  })
+};
+
+const rejectActivitySubmission = {
+  params: Joi.object().keys({
+    activityId: Joi.number().integer().required()
+  }),
+  body: Joi.object().keys({
+    rejectionReason: Joi.string().required().min(5)
+  })
+};
+
 export default {
   saveActivity,
-  getActivityHistory
+  getActivityHistory,
+  getActivitySubmissions,
+  approveActivitySubmission,
+  rejectActivitySubmission
 };

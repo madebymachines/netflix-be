@@ -1,7 +1,7 @@
 import express from 'express';
 import auth from '../../middlewares/auth';
 import validate from '../../middlewares/validate';
-import { adminValidation, userValidation } from '../../validations';
+import { adminValidation, userValidation, activityValidation } from '../../validations';
 import { adminController } from '../../controllers';
 
 const router = express.Router();
@@ -67,6 +67,31 @@ router
     auth('manageUsers'),
     validate(userValidation.rejectPurchase),
     adminController.rejectPurchase
+  );
+
+// Activity Submission Management
+router
+  .route('/activity-submissions')
+  .get(
+    auth('getUsers'),
+    validate(activityValidation.getActivitySubmissions),
+    adminController.getActivitySubmissions
+  );
+
+router
+  .route('/activity-submissions/:activityId/approve')
+  .patch(
+    auth('manageUsers'),
+    validate(activityValidation.approveActivitySubmission),
+    adminController.approveActivitySubmission
+  );
+
+router
+  .route('/activity-submissions/:activityId/reject')
+  .patch(
+    auth('manageUsers'),
+    validate(activityValidation.rejectActivitySubmission),
+    adminController.rejectActivitySubmission
   );
 
 export default router;

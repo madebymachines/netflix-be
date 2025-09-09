@@ -56,15 +56,18 @@ model PurchaseVerification {
 }
 
 model ActivityHistory {
-  id                 Int      @id @default(autoincrement())
+  id                 Int            @id @default(autoincrement())
   userId             Int
   eventType          String // 'INDIVIDUAL', 'GROUP'
   pointsEarn         Int
   pointsFrom         Int
   pointsTo           Int
-  submissionImageUrl String?
-  createdAt          DateTime @default(now())
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  submissionImageUrl String? // DIUBAH: Menjadi opsional dengan '?'
+  status             PurchaseStatus @default(PENDING)
+  rejectionReason    String?
+  reviewedAt         DateTime?
+  createdAt          DateTime       @default(now())
+  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model UserStats {
