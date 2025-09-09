@@ -3,10 +3,17 @@ import catchAsync from '../utils/catchAsync';
 import pick from '../utils/pick';
 import { User } from '@prisma/client';
 import { activityService } from '../services'; // Impor layanan
+import ApiError from '../utils/ApiError';
 
 const saveActivity = catchAsync(async (req, res) => {
   const user = req.user as User;
-  const result = await activityService.saveActivity(user.id, req.body);
+  const file = req.file;
+
+  if (!file) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Submission image is required');
+  }
+
+  const result = await activityService.saveActivity(user.id, req.body, file);
   res.status(httpStatus.OK).send(result);
 });
 

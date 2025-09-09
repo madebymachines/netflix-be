@@ -22,18 +22,20 @@ const getPublicLeaderboard = async (options: {
     const startOfWeek = moment().startOf('isoWeek').toDate();
     const endOfWeek = moment().endOf('isoWeek').toDate();
 
+    const userFilter: Prisma.UserWhereInput = { isBanned: false };
+    if (region) {
+      userFilter.country = region;
+    }
+
     const whereClause: Prisma.ActivityHistoryWhereInput = {
+      user: userFilter,
       createdAt: { gte: startOfWeek, lte: endOfWeek }
     };
-    if (region) {
-      whereClause.user = { country: region };
-    }
 
     const weeklyLeadersAggregate = await prisma.activityHistory.groupBy({
       by: ['userId'],
       where: whereClause,
       _sum: { pointsEarn: true },
-      // PERBAIKAN: Menambahkan tie-breaker berdasarkan userId untuk konsistensi
       orderBy: [{ _sum: { pointsEarn: 'desc' } }, { userId: 'asc' }],
       skip,
       take: limit
@@ -95,19 +97,21 @@ const getPublicLeaderboard = async (options: {
   let orderBy: Prisma.UserStatsOrderByWithRelationInput[];
   switch (timespan) {
     case 'streak':
-      // PERBAIKAN: Jika topStreak sama, urutkan berdasarkan siapa yang mencapainya lebih dulu
       orderBy = [{ topStreak: 'desc' }, { lastUpdated: 'asc' }];
       break;
     default: // alltime
-      // PERBAIKAN: Jika totalPoints sama, urutkan berdasarkan siapa yang mencapainya lebih dulu
       orderBy = [{ totalPoints: 'desc' }, { lastUpdated: 'asc' }];
       break;
   }
 
-  const whereUserStats: Prisma.UserStatsWhereInput = {};
+  const userStatsFilter: Prisma.UserWhereInput = { isBanned: false };
   if (region) {
-    whereUserStats.user = { country: region };
+    userStatsFilter.country = region;
   }
+
+  const whereUserStats: Prisma.UserStatsWhereInput = {
+    user: userStatsFilter
+  };
 
   const totalItems = await prisma.userStats.count({ where: whereUserStats });
   const totalPages = Math.ceil(totalItems / limit);
@@ -197,17 +201,16 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
     include: { stats: true }
   });
 
-  if (!user) {
-    const baseResponse = {
-      rank: 0,
-      username: 'N/A',
-      profilePictureUrl: null,
-      country: null
-    };
-    if (timespan === 'streak') {
-      return { ...baseResponse, streak: 0 };
-    }
-    return { ...baseResponse, points: 0, totalReps: 0 };
+  const baseResponseNoUser = {
+    rank: 0,
+    username: 'N/A',
+    profilePictureUrl: null,
+    country: null
+  };
+
+  if (!user || user.isBanned) {
+    if (timespan === 'streak') return { ...baseResponseNoUser, streak: 0 };
+    return { ...baseResponseNoUser, points: 0, totalReps: 0 };
   }
 
   const commonData = {
@@ -246,21 +249,14 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
       });
       const userScore = userWeeklyPoints._sum.pointsEarn || 0;
 
-      // Logika untuk menghitung peringkat dengan tie-breaking
       const allScores = await prisma.activityHistory.groupBy({
         by: ['userId'],
-        where: { createdAt: { gte: startOfWeek, lte: endOfWeek } },
+        where: {
+          user: { isBanned: false },
+          createdAt: { gte: startOfWeek, lte: endOfWeek }
+        },
         _sum: { pointsEarn: true },
-        orderBy: [
-          {
-            _sum: {
-              pointsEarn: 'desc'
-            }
-          },
-          {
-            userId: 'asc'
-          }
-        ]
+        orderBy: [{ _sum: { pointsEarn: 'desc' } }, { userId: 'asc' }]
       });
 
       const userRankIndex = allScores.findIndex((score) => score.userId === userId);
@@ -286,6 +282,7 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
       rank =
         (await prisma.userStats.count({
           where: {
+            user: { isBanned: false },
             OR: [
               { topStreak: { gt: user.stats.topStreak } },
               {
@@ -302,6 +299,7 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
       rank =
         (await prisma.userStats.count({
           where: {
+            user: { isBanned: false },
             OR: [
               { totalPoints: { gt: user.stats.totalPoints } },
               {

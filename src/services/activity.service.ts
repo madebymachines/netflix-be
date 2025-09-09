@@ -1,11 +1,15 @@
 import { Prisma, User } from '@prisma/client';
 import prisma from '../client';
 import moment from 'moment';
+import s3Service from './s3.service';
+import ApiError from '../utils/ApiError';
+import httpStatus from 'http-status';
 
 /**
  * Menyimpan aktivitas baru dan memperbarui statistik pengguna.
  * @param userId - ID pengguna.
  * @param activityBody - Detail aktivitas.
+ * @param {Express.Multer.File} file - File gambar yang diunggah.
  * @returns {Promise<object>}
  */
 const saveActivity = async (
@@ -13,9 +17,17 @@ const saveActivity = async (
   activityBody: {
     eventType: 'INDIVIDUAL' | 'GROUP';
     pointsEarn: number;
-  }
+  },
+  file: Express.Multer.File
 ) => {
   const { eventType, pointsEarn } = activityBody;
+
+  const imageUrl = await s3Service.uploadFile(
+    file.buffer,
+    file.originalname,
+    file.mimetype,
+    'submission'
+  );
 
   return prisma.$transaction(async (tx) => {
     // 1. Dapatkan atau buat UserStats
@@ -71,7 +83,8 @@ const saveActivity = async (
         eventType,
         pointsEarn,
         pointsFrom: userStats.totalPoints,
-        pointsTo: updatedStats.totalPoints
+        pointsTo: updatedStats.totalPoints,
+        submissionImageUrl: imageUrl
       }
     });
 

@@ -289,7 +289,9 @@ const queryPurchaseVerifications = async (
   const sortBy = options.sortBy ?? 'submittedAt';
   const sortType = options.sortType ?? 'desc';
 
-  const where: Prisma.PurchaseVerificationWhereInput = {};
+  const where: Prisma.PurchaseVerificationWhereInput = {
+    user: { isBanned: false }
+  };
   if (filter.status) {
     where.status = filter.status;
   }
@@ -298,6 +300,7 @@ const queryPurchaseVerifications = async (
   }
   if (filter.nameOrEmail) {
     where.user = {
+      isBanned: false,
       OR: [
         { name: { contains: filter.nameOrEmail, mode: 'insensitive' } },
         { email: { contains: filter.nameOrEmail, mode: 'insensitive' } }
@@ -378,22 +381,38 @@ const unbanUserById = async (userId: number): Promise<User> => {
 
 const getDashboardStats = async () => {
   const sevenDaysAgo = moment().subtract(7, 'days').toDate();
+  const whereNotBanned = { where: { isBanned: false } };
+  const whereVerificationNotBanned = { where: { user: { isBanned: false } } };
 
-  const [totalUsers, newUsers, approvedVerifications, rejectedVerifications, pendingVerifications] =
-    await Promise.all([
-      prisma.user.count(),
-      prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
-      prisma.purchaseVerification.count({ where: { status: 'APPROVED' } }),
-      prisma.purchaseVerification.count({ where: { status: 'REJECTED' } }),
-      prisma.purchaseVerification.count({ where: { status: 'PENDING' } })
-    ]);
+  const [
+    totalUsers,
+    newUsers,
+    approvedVerifications,
+    rejectedVerifications,
+    pendingVerifications,
+    blockedUsers
+  ] = await Promise.all([
+    prisma.user.count(whereNotBanned),
+    prisma.user.count({ where: { isBanned: false, createdAt: { gte: sevenDaysAgo } } }),
+    prisma.purchaseVerification.count({
+      where: { status: 'APPROVED', ...whereVerificationNotBanned.where }
+    }),
+    prisma.purchaseVerification.count({
+      where: { status: 'REJECTED', ...whereVerificationNotBanned.where }
+    }),
+    prisma.purchaseVerification.count({
+      where: { status: 'PENDING', ...whereVerificationNotBanned.where }
+    }),
+    prisma.user.count({ where: { isBanned: true } })
+  ]);
 
   return {
     totalUsers,
     newUsers,
     approvedVerifications,
     rejectedVerifications,
-    pendingVerifications
+    pendingVerifications,
+    blockedUsers
   };
 };
 
@@ -407,6 +426,7 @@ const getUserGrowthStats = async (days: number = 30) => {
   const results = await prisma.user.groupBy({
     by: ['createdAt'],
     where: {
+      isBanned: false,
       createdAt: {
         gte: startDate,
         lte: endDate

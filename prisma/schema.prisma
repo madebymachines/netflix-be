@@ -56,14 +56,15 @@ model PurchaseVerification {
 }
 
 model ActivityHistory {
-  id           Int      @id @default(autoincrement())
-  userId       Int
-  eventType    String // 'INDIVIDUAL', 'GROUP'
-  pointsEarn   Int
-  pointsFrom   Int
-  pointsTo     Int
-  createdAt    DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                 Int      @id @default(autoincrement())
+  userId             Int
+  eventType          String // 'INDIVIDUAL', 'GROUP'
+  pointsEarn         Int
+  pointsFrom         Int
+  pointsTo           Int
+  submissionImageUrl String?
+  createdAt          DateTime @default(now())
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model UserStats {
