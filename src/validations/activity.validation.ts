@@ -37,8 +37,12 @@ const rejectActivitySubmission = {
     activityId: Joi.number().integer().required()
   }),
   body: Joi.object().keys({
-    rejectionReason: Joi.string().required().min(5)
+    rejectionReason: Joi.string().optional().allow('')
   })
+};
+
+const getWeeklyWorkoutStats = {
+  // Tidak ada validasi body, query, atau params yang dibutuhkan
 };
 
 export default {
@@ -46,5 +50,6 @@ export default {
   getActivityHistory,
   getActivitySubmissions,
   approveActivitySubmission,
-  rejectActivitySubmission
+  rejectActivitySubmission,
+  getWeeklyWorkoutStats
 };

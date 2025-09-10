@@ -21,4 +21,12 @@ router
     activityController.getActivityHistory
   );
 
+router
+  .route('/stats/weekly-workout')
+  .get(
+    auth(),
+    validate(activityValidation.getWeeklyWorkoutStats),
+    activityController.getWeeklyWorkoutStats
+  );
+
 export default router;

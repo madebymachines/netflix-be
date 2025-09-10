@@ -341,7 +341,7 @@ const queryPurchaseVerifications = async (
   };
 };
 
-const banUserById = async (userId: number, reason: string): Promise<User> => {
+const banUserById = async (userId: number, reason?: string): Promise<User> => {
   const user = await getUserById(userId);
   if (!user) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
@@ -490,7 +490,24 @@ const getUserDetailsById = async (userId: number) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
   }
 
-  return user;
+  const rejectedStats = await prisma.activityHistory.aggregate({
+    where: {
+      userId: userId,
+      status: 'REJECTED'
+    },
+    _count: {
+      id: true
+    },
+    _sum: {
+      pointsEarn: true
+    }
+  });
+
+  return {
+    ...user,
+    rejectedChallenges: rejectedStats._count.id,
+    rejectedPoints: rejectedStats._sum.pointsEarn || 0
+  };
 };
 
 export default {

@@ -24,7 +24,14 @@ const getActivityHistory = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send(result);
 });
 
+const getWeeklyWorkoutStats = catchAsync(async (req, res) => {
+  const user = req.user as User;
+  const result = await activityService.getWeeklyWorkoutStats(user);
+  res.status(httpStatus.OK).send(result);
+});
+
 export default {
   saveActivity,
-  getActivityHistory
+  getActivityHistory,
+  getWeeklyWorkoutStats
 };

@@ -145,9 +145,6 @@ const getUserDetails = catchAsync(async (req, res) => {
 const banUser = catchAsync(async (req, res) => {
   const { userId } = req.params;
   const { reason } = req.body;
-  if (!reason) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Ban reason is required');
-  }
   await userService.banUserById(parseInt(userId), reason);
   res.status(httpStatus.OK).send({ message: 'User has been banned successfully.' });
 });

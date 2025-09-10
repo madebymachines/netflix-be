@@ -103,7 +103,7 @@ const banUser = {
     userId: Joi.number().integer().required()
   }),
   body: Joi.object().keys({
-    reason: Joi.string().required().min(5)
+    reason: Joi.string().optional().allow('')
   })
 };
 

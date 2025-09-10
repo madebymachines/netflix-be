@@ -33,7 +33,12 @@ const jwtVerify: VerifyCallback = async (payload, done) => {
     } else {
       entity = await prisma.user.findUnique({
         where: { id: payload.sub },
-        select: { id: true, email: true, name: true }
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          createdAt: true // <-- PERBAIKAN: Tambahkan createdAt di sini
+        }
       });
       if (entity) entity.entityType = 'user';
     }

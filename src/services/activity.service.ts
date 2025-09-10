@@ -1,4 +1,4 @@
-import { Prisma, PurchaseStatus } from '@prisma/client';
+import { Prisma, PurchaseStatus, User } from '@prisma/client';
 import prisma from '../client';
 import moment from 'moment';
 import s3Service from './s3.service';
@@ -122,12 +122,15 @@ const reviewActivitySubmission = async (
 
   if (status === PurchaseStatus.REJECTED) {
     await prisma.$transaction(async (tx) => {
-      // Kurangi poin pengguna jika di-reject
+      // Kurangi poin dan total tantangan pengguna jika di-reject
       await tx.userStats.update({
         where: { userId: activity.userId },
         data: {
           totalPoints: {
             decrement: activity.pointsEarn
+          },
+          totalChallenges: {
+            decrement: 1
           }
         }
       });
@@ -257,10 +260,86 @@ const getUserIndividualReps = async (userId: number): Promise<number> => {
     where: {
       userId,
       eventType: 'INDIVIDUAL',
-      status: { in: ['APPROVED', 'PENDING'] } // DIUBAH: Sertakan PENDING
+      status: { in: ['APPROVED', 'PENDING'] }
     }
   });
   return result._sum.pointsEarn || 0;
+};
+
+/**
+ * Get user's weekly workout stats
+ * @param {User} user - The user object
+ * @returns {Promise<object>}
+ */
+const getWeeklyWorkoutStats = async (user: User) => {
+  console.log('🚀 ~ getWeeklyWorkoutStats ~ user:', user);
+  const startOfWeek = moment().startOf('isoWeek').toDate();
+  const endOfWeek = moment().endOf('isoWeek').toDate();
+
+  const activitiesThisWeek = await prisma.activityHistory.findMany({
+    where: {
+      userId: user.id,
+      createdAt: {
+        gte: startOfWeek,
+        lte: endOfWeek
+      },
+      status: { in: ['APPROVED', 'PENDING'] }
+    },
+    select: {
+      createdAt: true
+    }
+  });
+
+  const weekly = {
+    senin: 0,
+    selasa: 0,
+    rabu: 0,
+    kamis: 0,
+    jumat: 0,
+    sabtu: 0,
+    minggu: 0
+  };
+
+  const dayMapping: { [key: number]: keyof typeof weekly } = {
+    1: 'senin',
+    2: 'selasa',
+    3: 'rabu',
+    4: 'kamis',
+    5: 'jumat',
+    6: 'sabtu',
+    7: 'minggu'
+  };
+
+  activitiesThisWeek.forEach((activity) => {
+    const dayOfWeek = moment(activity.createdAt).isoWeekday(); // 1 for Monday, 7 for Sunday
+    const dayName = dayMapping[dayOfWeek];
+    if (dayName) {
+      weekly[dayName]++;
+    }
+  });
+
+  // Calculate averages
+  // DIUBAH: Menambahkan +1 untuk membuat perhitungan hari inklusif
+  const daysSinceRegistration = Math.max(1, moment().diff(moment(user.createdAt), 'days') + 1);
+  console.log('🚀 ~ getWeeklyWorkoutStats ~ daysSinceRegistration:', daysSinceRegistration);
+  // DIUBAH: Menggunakan Math.ceil untuk menghitung minggu parsial sebagai satu minggu penuh
+  const weeksSinceRegistration = Math.max(1, Math.ceil(daysSinceRegistration / 7));
+  console.log('🚀 ~ getWeeklyWorkoutStats ~ weeksSinceRegistration:', weeksSinceRegistration);
+
+  const totalIndividualReps = await getUserIndividualReps(user.id);
+  console.log('🚀 ~ getWeeklyWorkoutStats ~ totalIndividualReps:', totalIndividualReps);
+  const userStats = await prisma.userStats.findUnique({ where: { userId: user.id } });
+  const totalChallenges = userStats?.totalChallenges || 0;
+  console.log('🚀 ~ getWeeklyWorkoutStats ~ totalChallenges:', totalChallenges);
+
+  const averageRepsPerDay = totalIndividualReps / daysSinceRegistration;
+  const averageChallengePerWeek = totalChallenges / weeksSinceRegistration;
+
+  return {
+    weekly,
+    averageRepsPerDay: parseFloat(averageRepsPerDay.toFixed(2)),
+    averageChallengePerWeek: parseFloat(averageChallengePerWeek.toFixed(2))
+  };
 };
 
 export default {
@@ -268,5 +347,6 @@ export default {
   getActivityHistory,
   getUserIndividualReps,
   reviewActivitySubmission,
-  queryActivitySubmissions
+  queryActivitySubmissions,
+  getWeeklyWorkoutStats
 };
