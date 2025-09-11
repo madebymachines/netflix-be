@@ -17,7 +17,7 @@ if (config.env !== 'test') {
 }
 
 // Helper untuk membuat template email HTML dasar
-const createHtmlTemplate = (content: string) => `
+const createHtmlTemplate = (content: string, preheaderText: string) => `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -69,9 +69,19 @@ const createHtmlTemplate = (content: string) => `
             text-decoration: none;
             word-break: break-all;
         }
+        .preheader {
+            display: none !important;
+            visibility: hidden;
+            opacity: 0;
+            color: transparent;
+            height: 0;
+            width: 0;
+        }
     </style>
 </head>
-<body style="background-image: url('cid:background'); background-size: cover; background-position: center; background-repeat: no-repeat;">
+<body style="background-color: #111111; background-image: url('cid:background'); background-size: cover; background-position: center; background-repeat: no-repeat;">
+    <!-- Preheader Text -->
+    <span class="preheader">${preheaderText}</span>
     <div class="container">
         <img src="cid:logo" alt="Logo" class="logo" style="width: 200px;">
         <div class="content-box">
@@ -91,7 +101,7 @@ const createHtmlTemplate = (content: string) => `
  */
 const sendEmail = async (to: string, subject: string, html: string) => {
   const msg = {
-    from: config.email.from,
+    from: `"${config.email.fromName || 'Netflix Physical Asia'}" <${config.email.from}>`,
     to,
     subject,
     html,
@@ -124,6 +134,7 @@ const sendEmail = async (to: string, subject: string, html: string) => {
  */
 const sendResetPasswordEmail = async (to: string, name: string, token: string) => {
   const subject = 'Reset Your Password';
+  const preheaderText = `Hi ${name}, We've received a request to reset the password for your account.`;
   const resetPasswordUrl = `${config.feUrl}/reset-password?token=${token}`;
 
   const content = `
@@ -136,7 +147,7 @@ const sendResetPasswordEmail = async (to: string, name: string, token: string) =
     <p>Thank you.</p>
   `;
 
-  const html = createHtmlTemplate(content);
+  const html = createHtmlTemplate(content, preheaderText);
   await sendEmail(to, subject, html);
 };
 
@@ -148,6 +159,7 @@ const sendResetPasswordEmail = async (to: string, name: string, token: string) =
  */
 const sendVerificationEmail = async (to: string, token: string) => {
   const subject = 'Your One-Time Password (OTP)';
+  const preheaderText = `Hello there, Please use the following One-Time Password (OTP) to complete your session.`;
 
   const content = `
     <p>Hello there,</p>
@@ -157,7 +169,7 @@ const sendVerificationEmail = async (to: string, token: string) => {
     <p>Thank you.</p>
   `;
 
-  const html = createHtmlTemplate(content);
+  const html = createHtmlTemplate(content, preheaderText);
   await sendEmail(to, subject, html);
 };
 
@@ -170,6 +182,7 @@ const sendVerificationEmail = async (to: string, token: string) => {
  */
 const sendPurchaseRejectionEmail = async (to: string, name: string, reason?: string) => {
   const subject = 'Update on Your Purchase Verification';
+  const preheaderText = `Hello there, We have reviewed the receipt/proof of purchase you previously submitted.`;
 
   const reasonMessage = reason
     ? `We apologize, but the document has not been verified for the following reason: ${reason}. Please log back into your account and re-upload with your valid receipt and ensure the image quality is clear.`
@@ -181,7 +194,7 @@ const sendPurchaseRejectionEmail = async (to: string, name: string, reason?: str
     <p>Thank you.</p>
   `;
 
-  const html = createHtmlTemplate(content);
+  const html = createHtmlTemplate(content, preheaderText);
   await sendEmail(to, subject, html);
 };
 
