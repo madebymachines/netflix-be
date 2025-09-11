@@ -102,8 +102,13 @@ const refreshTokens = catchAsync(async (req, res) => {
 });
 
 const forgotPassword = catchAsync(async (req, res) => {
-  const resetPasswordToken = await tokenService.generateResetPasswordToken(req.body.email);
-  await emailService.sendResetPasswordEmail(req.body.email, resetPasswordToken);
+  const user = await userService.getUserByEmail(req.body.email, ['name']);
+  // Untuk alasan keamanan, kita tidak memberi tahu jika email tidak ada.
+  // Namun, jika ada, kita kirim email.
+  if (user) {
+    const resetPasswordToken = await tokenService.generateResetPasswordToken(req.body.email);
+    await emailService.sendResetPasswordEmail(req.body.email, user.name, resetPasswordToken);
+  }
   res.status(httpStatus.OK).send({
     message: 'If an account with that email exists, a password reset link has been sent.'
   });
