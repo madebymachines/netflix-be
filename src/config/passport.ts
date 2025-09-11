@@ -37,7 +37,8 @@ const jwtVerify: VerifyCallback = async (payload, done) => {
           id: true,
           email: true,
           name: true,
-          createdAt: true // <-- PERBAIKAN: Tambahkan createdAt di sini
+          gender: true,
+          createdAt: true
         }
       });
       if (entity) entity.entityType = 'user';

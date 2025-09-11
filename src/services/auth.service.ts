@@ -23,13 +23,14 @@ const loginUserWithEmailAndPassword = async (email: string, password: string): P
     'username',
     'phoneNumber',
     'country',
+    'gender',
     'profilePictureUrl',
     'purchaseStatus',
     'password',
     'emailVerifiedAt',
     'isBanned',
-    'bannedAt', // Ditambahkan
-    'banReason', // Ditambahkan
+    'bannedAt',
+    'banReason',
     'createdAt',
     'updatedAt'
   ]);

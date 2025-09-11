@@ -44,6 +44,7 @@ const clearAuthCookies = (res: Response) => {
 };
 
 const register = catchAsync(async (req, res) => {
+  // `gender` sekarang diambil dari body dan diteruskan
   const user = await userService.createUser(req.body);
   const verifyEmailToken = await tokenService.generateVerifyEmailToken(user);
   await emailService.sendVerificationEmail(user.email, verifyEmailToken);

@@ -19,6 +19,7 @@ model User {
   phoneNumber           String?
   profilePictureUrl     String?
   country               String?
+  gender                Gender? // DITAMBAHKAN: Field gender baru
   purchaseStatus        PurchaseStatus          @default(NOT_VERIFIED)
   emailVerifiedAt       DateTime?
   isBanned              Boolean                 @default(false)
@@ -62,7 +63,7 @@ model ActivityHistory {
   pointsEarn         Int
   pointsFrom         Int
   pointsTo           Int
-  submissionImageUrl String? // DIUBAH: Menjadi opsional dengan '?'
+  submissionImageUrl String?
   status             PurchaseStatus @default(PENDING)
   rejectionReason    String?
   reviewedAt         DateTime?
@@ -91,6 +92,12 @@ model Token {
   userId      Int?
   admin       Admin?    @relation(fields: [adminId], references: [id], onDelete: Cascade)
   adminId     Int?
+}
+
+// DITAMBAHKAN: Enum untuk gender
+enum Gender {
+  MALE
+  FEMALE
 }
 
 enum PurchaseType {

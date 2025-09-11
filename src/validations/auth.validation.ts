@@ -8,7 +8,8 @@ const register = {
     email: Joi.string().required().email().lowercase(),
     password: Joi.string().required().custom(password),
     phoneNumber: Joi.string().required(),
-    country: Joi.string().required().valid('SG', 'TH', 'MY')
+    country: Joi.string().required().valid('SG', 'TH', 'MY'),
+    gender: Joi.string().required().valid('MALE', 'FEMALE')
   })
 };
 
