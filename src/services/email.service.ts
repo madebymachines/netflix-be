@@ -32,7 +32,6 @@ const createHtmlTemplate = (content: string, preheaderText: string) => `
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
         }
         .container {
-            width: 100%;
             max-width: 600px;
             margin: 0 auto;
             padding: 40px 20px;
@@ -60,9 +59,9 @@ const createHtmlTemplate = (content: string, preheaderText: string) => `
             padding: 20px;
             text-align: center;
             margin: 20px 0;
-            font-size: 40px;
+            font-size: 24px;
             font-weight: bold;
-            letter-spacing: 10px;
+            letter-spacing: 1px;
         }
         .link {
             color: #3498db;
