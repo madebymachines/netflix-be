@@ -76,7 +76,15 @@ const saveActivity = async (
       }
     });
 
-    // 4. Buat entri ActivityHistory dengan status PENDING
+    // DIUBAH: Tentukan status berdasarkan eventType
+    const submissionStatus =
+      eventType === 'INDIVIDUAL' ? PurchaseStatus.APPROVED : PurchaseStatus.PENDING;
+    const message =
+      eventType === 'INDIVIDUAL'
+        ? 'Activity saved successfully.'
+        : 'Activity saved and is pending review.';
+
+    // 4. Buat entri ActivityHistory dengan status yang sesuai
     await tx.activityHistory.create({
       data: {
         userId,
@@ -85,12 +93,14 @@ const saveActivity = async (
         pointsFrom: userStats.totalPoints,
         pointsTo: updatedStats.totalPoints,
         submissionImageUrl: imageUrl,
-        status: PurchaseStatus.PENDING
+        status: submissionStatus,
+        // Jika langsung disetujui, catat waktu review
+        reviewedAt: submissionStatus === PurchaseStatus.APPROVED ? new Date() : null
       }
     });
 
     return {
-      message: 'Activity saved and is pending review.',
+      message,
       pointsEarned: pointsEarn,
       streakStatus: {
         currentStreak: updatedStats.currentStreak,
@@ -166,7 +176,6 @@ const queryActivitySubmissions = async (
     sortType?: 'asc' | 'desc';
   }
 ) => {
-  console.log(filter);
   const page = options.page ?? 1;
   const limit = options.limit ?? 10;
   const sortBy = options.sortBy ?? 'createdAt';
