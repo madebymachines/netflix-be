@@ -158,7 +158,7 @@ const reviewActivitySubmission = async (
 };
 
 const queryActivitySubmissions = async (
-  filter: { status?: PurchaseStatus; nameOrEmail?: string },
+  filter: { status?: PurchaseStatus; nameOrEmail?: string; eventType?: 'INDIVIDUAL' | 'GROUP' },
   options: {
     limit?: number;
     page?: number;
@@ -166,25 +166,35 @@ const queryActivitySubmissions = async (
     sortType?: 'asc' | 'desc';
   }
 ) => {
+  console.log(filter);
   const page = options.page ?? 1;
   const limit = options.limit ?? 10;
   const sortBy = options.sortBy ?? 'createdAt';
   const sortType = options.sortType ?? 'desc';
 
-  const where: Prisma.ActivityHistoryWhereInput = {};
-  const userFilter: Prisma.UserWhereInput = { isBanned: false };
+  const where: Prisma.ActivityHistoryWhereInput = {
+    user: {
+      isBanned: false
+    }
+  };
 
   if (filter.status) {
     where.status = filter.status;
   }
-  if (filter.nameOrEmail) {
-    userFilter.OR = [
-      { name: { contains: filter.nameOrEmail, mode: 'insensitive' } },
-      { email: { contains: filter.nameOrEmail, mode: 'insensitive' } }
-    ];
+
+  if (filter.eventType) {
+    where.eventType = filter.eventType;
   }
 
-  where.user = userFilter;
+  if (filter.nameOrEmail) {
+    // Pastikan `where.user` adalah objek sebelum menambahkan `OR`
+    if (where.user && typeof where.user === 'object') {
+      where.user.OR = [
+        { name: { contains: filter.nameOrEmail, mode: 'insensitive' } },
+        { email: { contains: filter.nameOrEmail, mode: 'insensitive' } }
+      ];
+    }
+  }
 
   const [submissions, totalItems] = await prisma.$transaction([
     prisma.activityHistory.findMany({
@@ -266,13 +276,7 @@ const getUserIndividualReps = async (userId: number): Promise<number> => {
   return result._sum.pointsEarn || 0;
 };
 
-/**
- * Get user's weekly workout stats
- * @param {User} user - The user object
- * @returns {Promise<object>}
- */
 const getWeeklyWorkoutStats = async (user: User) => {
-  console.log('🚀 ~ getWeeklyWorkoutStats ~ user:', user);
   const startOfWeek = moment().startOf('isoWeek').toDate();
   const endOfWeek = moment().endOf('isoWeek').toDate();
 
@@ -319,18 +323,12 @@ const getWeeklyWorkoutStats = async (user: User) => {
   });
 
   // Calculate averages
-  // DIUBAH: Menambahkan +1 untuk membuat perhitungan hari inklusif
   const daysSinceRegistration = Math.max(1, moment().diff(moment(user.createdAt), 'days') + 1);
-  console.log('🚀 ~ getWeeklyWorkoutStats ~ daysSinceRegistration:', daysSinceRegistration);
-  // DIUBAH: Menggunakan Math.ceil untuk menghitung minggu parsial sebagai satu minggu penuh
   const weeksSinceRegistration = Math.max(1, Math.ceil(daysSinceRegistration / 7));
-  console.log('🚀 ~ getWeeklyWorkoutStats ~ weeksSinceRegistration:', weeksSinceRegistration);
 
   const totalIndividualReps = await getUserIndividualReps(user.id);
-  console.log('🚀 ~ getWeeklyWorkoutStats ~ totalIndividualReps:', totalIndividualReps);
   const userStats = await prisma.userStats.findUnique({ where: { userId: user.id } });
   const totalChallenges = userStats?.totalChallenges || 0;
-  console.log('🚀 ~ getWeeklyWorkoutStats ~ totalChallenges:', totalChallenges);
 
   const averageRepsPerDay = totalIndividualReps / daysSinceRegistration;
   const averageChallengePerWeek = totalChallenges / weeksSinceRegistration;

@@ -156,7 +156,7 @@ const unbanUser = catchAsync(async (req, res) => {
 });
 
 const getActivitySubmissions = catchAsync(async (req, res) => {
-  const filter = pick(req.query, ['status', 'nameOrEmail']);
+  const filter = pick(req.query, ['status', 'nameOrEmail', 'eventType']);
   const options = pick(req.query, ['sortBy', 'limit', 'page', 'sortType']);
   const result = await activityService.queryActivitySubmissions(filter, options);
   res
