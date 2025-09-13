@@ -11,22 +11,22 @@ datasource db {
 }
 
 model User {
-  id                    Int                     @id @default(autoincrement())
+  id                    Int                    @id @default(autoincrement())
   name                  String
-  username              String                  @unique
-  email                 String                  @unique
+  username              String                 @unique
+  email                 String                 @unique
   password              String
   phoneNumber           String?
   profilePictureUrl     String?
   country               String?
-  gender                Gender? // DITAMBAHKAN: Field gender baru
-  purchaseStatus        PurchaseStatus          @default(NOT_VERIFIED)
+  gender                Gender?
+  purchaseStatus        PurchaseStatus         @default(NOT_VERIFIED)
   emailVerifiedAt       DateTime?
-  isBanned              Boolean                 @default(false)
+  isBanned              Boolean                @default(false)
   bannedAt              DateTime?
   banReason             String?
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
   tokens                Token[]
   purchaseVerifications PurchaseVerification[]
   activityHistory       ActivityHistory[]
@@ -96,23 +96,26 @@ model Token {
 }
 
 model ExportJob {
-  id                 Int       @id @default(autoincrement())
-  jobId              String    @unique @default(uuid())
+  id                 Int        @id @default(autoincrement())
+  jobId              String     @unique @default(uuid())
   type               ExportType
-  status             JobStatus @default(PENDING)
+  status             JobStatus  @default(PENDING)
   filters            Json
   downloadUrl        String?
   error              String?
+  notificationEmail  String?
   requestedByAdminId Int
-  admin              Admin     @relation(fields: [requestedByAdminId], references: [id], onDelete: Cascade)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  admin              Admin      @relation(fields: [requestedByAdminId], references: [id], onDelete: Cascade)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
   completedAt        DateTime?
 }
 
 enum ExportType {
   PARTICIPANTS
   LEADERBOARD
+  VERIFICATIONS
+  SUBMISSIONS
 }
 
 enum JobStatus {
@@ -122,7 +125,6 @@ enum JobStatus {
   FAILED
 }
 
-// DITAMBAHKAN: Enum untuk gender
 enum Gender {
   MALE
   FEMALE

@@ -68,6 +68,15 @@ const createHtmlTemplate = (content: string, preheaderText: string) => `
             text-decoration: none;
             word-break: break-all;
         }
+        .button {
+            display: inline-block;
+            background-color: #3498db;
+            color: #ffffff;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+        }
         .preheader {
             display: none !important;
             visibility: hidden;
@@ -197,10 +206,37 @@ const sendPurchaseRejectionEmail = async (to: string, name: string, reason?: str
   await sendEmail(to, subject, html);
 };
 
+/**
+ * Send export ready email
+ * @param {string} to
+ * @param {string} name
+ * @param {string} downloadUrl
+ * @returns {Promise}
+ */
+const sendExportReadyEmail = async (to: string, name: string, downloadUrl: string) => {
+  const subject = 'Your Data Export is Ready';
+  const preheaderText = `Hi ${name}, the data export you requested is complete and ready for download.`;
+
+  const content = `
+    <p>Hi ${name},</p>
+    <p>The data export you requested is complete. You can download the file using the button below.</p>
+    <p style="text-align: center; margin: 30px 0;">
+      <a href="${downloadUrl}" class="button">Download File</a>
+    </p>
+    <p>If the button doesn't work, you can also copy and paste this link into your browser:</p>
+    <p><a href="${downloadUrl}" class="link">${downloadUrl}</a></p>
+    <p>Thank you.</p>
+  `;
+
+  const html = createHtmlTemplate(content, preheaderText);
+  await sendEmail(to, subject, html);
+};
+
 export default {
   transport,
   sendEmail,
   sendResetPasswordEmail,
   sendVerificationEmail,
-  sendPurchaseRejectionEmail
+  sendPurchaseRejectionEmail,
+  sendExportReadyEmail
 };

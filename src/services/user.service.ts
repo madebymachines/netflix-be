@@ -302,18 +302,21 @@ const queryPurchaseVerifications = async (
     status?: PurchaseStatus;
     type?: PurchaseType;
     nameOrEmail?: string;
+    dateRange?: { from: Date; to: Date };
   },
   options: {
     limit?: number;
     page?: number;
     sortBy?: string;
     sortType?: 'asc' | 'desc';
+    fetchAll?: boolean;
   }
 ): Promise<object> => {
   const page = options.page ?? 1;
   const limit = options.limit ?? 10;
   const sortBy = options.sortBy ?? 'submittedAt';
   const sortType = options.sortType ?? 'desc';
+  const fetchAll = options.fetchAll ?? false;
 
   const where: Prisma.PurchaseVerificationWhereInput = {
     user: { isBanned: false }
@@ -333,34 +336,45 @@ const queryPurchaseVerifications = async (
       ]
     };
   }
+  if (filter.dateRange) {
+    where.submittedAt = {
+      gte: filter.dateRange.from,
+      lte: filter.dateRange.to
+    };
+  }
+
+  const findManyArgs: Prisma.PurchaseVerificationFindManyArgs = {
+    where,
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          username: true
+        }
+      }
+    },
+    orderBy: { [sortBy]: sortType }
+  };
+
+  if (!fetchAll) {
+    findManyArgs.skip = (page - 1) * limit;
+    findManyArgs.take = limit;
+  }
 
   const [verifications, totalItems] = await prisma.$transaction([
-    prisma.purchaseVerification.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            username: true
-          }
-        }
-      },
-      skip: (page - 1) * limit,
-      take: limit,
-      orderBy: { [sortBy]: sortType }
-    }),
+    prisma.purchaseVerification.findMany(findManyArgs),
     prisma.purchaseVerification.count({ where })
   ]);
 
-  const totalPages = Math.ceil(totalItems / limit);
+  const totalPages = fetchAll ? 1 : Math.ceil(totalItems / limit);
 
   return {
     data: verifications,
     pagination: {
       currentPage: page,
-      limit,
+      limit: fetchAll ? totalItems : limit,
       totalItems,
       totalPages
     }

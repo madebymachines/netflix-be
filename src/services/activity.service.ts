@@ -168,18 +168,25 @@ const reviewActivitySubmission = async (
 };
 
 const queryActivitySubmissions = async (
-  filter: { status?: PurchaseStatus; nameOrEmail?: string; eventType?: 'INDIVIDUAL' | 'GROUP' },
+  filter: {
+    status?: PurchaseStatus;
+    nameOrEmail?: string;
+    eventType?: 'INDIVIDUAL' | 'GROUP';
+    dateRange?: { from: Date; to: Date };
+  },
   options: {
     limit?: number;
     page?: number;
     sortBy?: string;
     sortType?: 'asc' | 'desc';
+    fetchAll?: boolean;
   }
 ) => {
   const page = options.page ?? 1;
   const limit = options.limit ?? 10;
   const sortBy = options.sortBy ?? 'createdAt';
   const sortType = options.sortType ?? 'desc';
+  const fetchAll = options.fetchAll ?? false;
 
   const where: Prisma.ActivityHistoryWhereInput = {
     user: {
@@ -196,7 +203,6 @@ const queryActivitySubmissions = async (
   }
 
   if (filter.nameOrEmail) {
-    // Pastikan `where.user` adalah objek sebelum menambahkan `OR`
     if (where.user && typeof where.user === 'object') {
       where.user.OR = [
         { name: { contains: filter.nameOrEmail, mode: 'insensitive' } },
@@ -204,28 +210,39 @@ const queryActivitySubmissions = async (
       ];
     }
   }
+  if (filter.dateRange) {
+    where.createdAt = {
+      gte: filter.dateRange.from,
+      lte: filter.dateRange.to
+    };
+  }
+
+  const findManyArgs: Prisma.ActivityHistoryFindManyArgs = {
+    where,
+    include: {
+      user: {
+        select: { name: true, email: true }
+      }
+    },
+    orderBy: { [sortBy]: sortType }
+  };
+
+  if (!fetchAll) {
+    findManyArgs.skip = (page - 1) * limit;
+    findManyArgs.take = limit;
+  }
 
   const [submissions, totalItems] = await prisma.$transaction([
-    prisma.activityHistory.findMany({
-      where,
-      include: {
-        user: {
-          select: { name: true, email: true }
-        }
-      },
-      skip: (page - 1) * limit,
-      take: limit,
-      orderBy: { [sortBy]: sortType }
-    }),
+    prisma.activityHistory.findMany(findManyArgs),
     prisma.activityHistory.count({ where })
   ]);
 
-  const totalPages = Math.ceil(totalItems / limit);
+  const totalPages = fetchAll ? 1 : Math.ceil(totalItems / limit);
   return {
     data: submissions,
     pagination: {
       currentPage: page,
-      limit,
+      limit: fetchAll ? totalItems : limit,
       totalItems,
       totalPages
     }
