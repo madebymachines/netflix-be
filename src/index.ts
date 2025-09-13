@@ -1,13 +1,27 @@
-import { Server } from 'http';
+import { Server as HttpServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
 import app from './app';
 import prisma from './client';
 import config from './config/config';
 import logger from './config/logger';
+import { socketService } from './services';
 
-let server: Server;
+let server: HttpServer;
 prisma.$connect().then(() => {
   logger.info('Connected to SQL Database');
-  server = app.listen(config.port, () => {
+  const httpServer = new HttpServer(app);
+  const io = new SocketIOServer(httpServer, {
+    cors: {
+      origin: config.cors.origin,
+      methods: ['GET', 'POST'],
+      credentials: true
+    }
+  });
+
+  socketService.init(io);
+  logger.info('Socket.IO server initialized');
+
+  server = httpServer.listen(config.port, () => {
     logger.info(`Listening to port ${config.port}`);
   });
 });

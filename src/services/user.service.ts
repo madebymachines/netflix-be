@@ -82,12 +82,14 @@ const queryUsers = async (
     page?: number;
     sortBy?: string;
     sortType?: 'asc' | 'desc';
+    fetchAll?: boolean;
   }
 ) => {
   const page = options.page ?? 1;
   const limit = options.limit ?? 10;
   const sortBy = options.sortBy ?? 'createdAt';
   const sortType = options.sortType ?? 'desc';
+  const fetchAll = options.fetchAll ?? false;
 
   const where: Prisma.UserWhereInput = {};
   if (filter.name) {
@@ -97,30 +99,43 @@ const queryUsers = async (
     where.isBanned = filter.isBanned === 'true';
   }
 
+  const findManyArgs: Prisma.UserFindManyArgs = {
+    where,
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      username: true,
+      country: true,
+      gender: true,
+      isBanned: true,
+      purchaseStatus: true,
+      createdAt: true
+    },
+    orderBy: { [sortBy]: sortType }
+  };
+
+  if (!fetchAll) {
+    findManyArgs.skip = (page - 1) * limit;
+    findManyArgs.take = limit;
+  }
+
   const [users, totalItems] = await prisma.$transaction([
-    prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        username: true,
-        country: true,
-        gender: true,
-        isBanned: true,
-        purchaseStatus: true,
-        createdAt: true
-      },
-      skip: (page - 1) * limit,
-      take: limit,
-      orderBy: { [sortBy]: sortType }
-    }),
+    prisma.user.findMany(findManyArgs),
     prisma.user.count({ where })
   ]);
 
-  const totalPages = Math.ceil(totalItems / limit);
+  const totalPages = fetchAll ? 1 : Math.ceil(totalItems / limit);
 
-  return { data: users, pagination: { currentPage: page, limit, totalItems, totalPages } };
+  return {
+    data: users,
+    pagination: {
+      currentPage: page,
+      limit: fetchAll ? totalItems : limit,
+      totalItems,
+      totalPages
+    }
+  };
 };
 
 /**

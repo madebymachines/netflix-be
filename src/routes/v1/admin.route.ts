@@ -1,7 +1,12 @@
 import express from 'express';
 import auth from '../../middlewares/auth';
 import validate from '../../middlewares/validate';
-import { adminValidation, userValidation, activityValidation } from '../../validations';
+import {
+  adminValidation,
+  userValidation,
+  activityValidation,
+  exportValidation
+} from '../../validations';
 import { adminController } from '../../controllers';
 
 const router = express.Router();
@@ -13,6 +18,14 @@ router.post('/refresh-tokens', adminController.refreshTokens);
 
 // Get current admin profile
 router.get('/me', auth(), adminController.getMe);
+
+// Export Data
+router.post(
+  '/export',
+  auth('manageUsers'),
+  validate(exportValidation.requestExport),
+  adminController.requestExport
+);
 
 // Dashboard Stats
 router.get('/stats', auth('getUsers'), adminController.getDashboardStats);

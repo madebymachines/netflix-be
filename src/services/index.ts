@@ -6,3 +6,5 @@ export { default as emailService } from './email.service';
 export { default as activityService } from './activity.service';
 export { default as leaderboardService } from './leaderboard.service';
 export { default as s3Service } from './s3.service';
+export { default as exportService } from './export.service';
+export { default as socketService } from './socket.service';

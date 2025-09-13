@@ -1,6 +1,6 @@
 import httpStatus from 'http-status';
 import catchAsync from '../utils/catchAsync';
-import { authService, userService, tokenService, activityService } from '../services';
+import { authService, userService, tokenService, activityService, exportService } from '../services';
 import { Response } from 'express';
 import { AuthTokensResponse } from '../types/response';
 import config from '../config/config';
@@ -177,6 +177,16 @@ const rejectActivitySubmission = catchAsync(async (req, res) => {
   res.status(httpStatus.OK).send({ message: 'Activity submission has been rejected.' });
 });
 
+const requestExport = catchAsync(async (req, res) => {
+  const admin = req.user as Admin;
+  const { type, filters } = req.body;
+  const job = await exportService.createExportJob(type, filters, admin.id);
+  res.status(httpStatus.ACCEPTED).send({
+    message: 'Export job submitted successfully.',
+    jobId: job.jobId
+  });
+});
+
 export default {
   adminLogin,
   getMe,
@@ -197,5 +207,6 @@ export default {
   unbanUser,
   getActivitySubmissions,
   approveActivitySubmission,
-  rejectActivitySubmission
+  rejectActivitySubmission,
+  requestExport
 };

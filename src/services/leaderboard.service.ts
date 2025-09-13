@@ -14,9 +14,11 @@ const getPublicLeaderboard = async (options: {
   region?: string;
   page?: number;
   limit?: number;
+  fetchAll?: boolean;
 }) => {
-  const { timespan = 'alltime', region, page = 1, limit = 20 } = options;
-  const skip = (page - 1) * limit;
+  const { timespan = 'alltime', region, page = 1, limit = 20, fetchAll = false } = options;
+  const skip = fetchAll ? 0 : (page - 1) * limit;
+  const take = fetchAll ? undefined : limit;
 
   if (timespan === 'weekly') {
     const startOfWeek = moment().startOf('isoWeek').toDate();
@@ -39,7 +41,7 @@ const getPublicLeaderboard = async (options: {
       _sum: { pointsEarn: true },
       orderBy: [{ _sum: { pointsEarn: 'desc' } }, { userId: 'asc' }],
       skip,
-      take: limit
+      take
     });
 
     const totalItemsAggregate = await prisma.activityHistory.groupBy({
@@ -47,7 +49,7 @@ const getPublicLeaderboard = async (options: {
       where: whereClause
     });
     const totalItems = totalItemsAggregate.length;
-    const totalPages = Math.ceil(totalItems / limit);
+    const totalPages = fetchAll ? 1 : Math.ceil(totalItems / limit);
 
     const userIds = weeklyLeadersAggregate.map((u) => u.userId);
     if (userIds.length === 0) {
@@ -92,7 +94,12 @@ const getPublicLeaderboard = async (options: {
     });
 
     return {
-      pagination: { currentPage: page, limit, totalItems, totalPages },
+      pagination: {
+        currentPage: page,
+        limit: fetchAll ? totalItems : limit,
+        totalItems,
+        totalPages
+      },
       leaderboard
     };
   }
@@ -117,7 +124,7 @@ const getPublicLeaderboard = async (options: {
   };
 
   const totalItems = await prisma.userStats.count({ where: whereUserStats });
-  const totalPages = Math.ceil(totalItems / limit);
+  const totalPages = fetchAll ? 1 : Math.ceil(totalItems / limit);
 
   const userStats = await prisma.userStats.findMany({
     where: whereUserStats,
@@ -134,7 +141,7 @@ const getPublicLeaderboard = async (options: {
     },
     orderBy: orderBy,
     skip,
-    take: limit
+    take
   });
 
   const userIds = userStats.map((s) => s.userId);
@@ -188,7 +195,7 @@ const getPublicLeaderboard = async (options: {
   return {
     pagination: {
       currentPage: page,
-      limit,
+      limit: fetchAll ? totalItems : limit,
       totalItems,
       totalPages
     },

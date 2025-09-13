@@ -34,14 +34,15 @@ model User {
 }
 
 model Admin {
-  id        Int       @id @default(autoincrement())
-  name      String
-  email     String    @unique
-  password  String
-  role      AdminRole
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  tokens    Token[]
+  id         Int         @id @default(autoincrement())
+  name       String
+  email      String      @unique
+  password   String
+  role       AdminRole
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  tokens     Token[]
+  exportJobs ExportJob[]
 }
 
 model PurchaseVerification {
@@ -92,6 +93,33 @@ model Token {
   userId      Int?
   admin       Admin?    @relation(fields: [adminId], references: [id], onDelete: Cascade)
   adminId     Int?
+}
+
+model ExportJob {
+  id                 Int       @id @default(autoincrement())
+  jobId              String    @unique @default(uuid())
+  type               ExportType
+  status             JobStatus @default(PENDING)
+  filters            Json
+  downloadUrl        String?
+  error              String?
+  requestedByAdminId Int
+  admin              Admin     @relation(fields: [requestedByAdminId], references: [id], onDelete: Cascade)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  completedAt        DateTime?
+}
+
+enum ExportType {
+  PARTICIPANTS
+  LEADERBOARD
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }
 
 // DITAMBAHKAN: Enum untuk gender
