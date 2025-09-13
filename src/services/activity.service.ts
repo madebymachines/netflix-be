@@ -172,6 +172,7 @@ const queryActivitySubmissions = async (
     status?: PurchaseStatus;
     nameOrEmail?: string;
     eventType?: 'INDIVIDUAL' | 'GROUP';
+    country?: string;
     dateRange?: { from: Date; to: Date };
   },
   options: {
@@ -197,11 +198,12 @@ const queryActivitySubmissions = async (
   if (filter.status) {
     where.status = filter.status;
   }
-
   if (filter.eventType) {
     where.eventType = filter.eventType;
   }
-
+  if (filter.country) {
+    (where.user as Prisma.UserWhereInput).country = filter.country;
+  }
   if (filter.nameOrEmail) {
     if (where.user && typeof where.user === 'object') {
       where.user.OR = [

@@ -76,7 +76,13 @@ const createUser = async (userBody: {
  * @returns {Promise<QueryResult>}
  */
 const queryUsers = async (
-  filter: { name?: string; isBanned?: string },
+  filter: {
+    name?: string;
+    isBanned?: string;
+    country?: string;
+    purchaseStatus?: PurchaseStatus;
+    dateRange?: { from: Date; to: Date };
+  },
   options: {
     limit?: number;
     page?: number;
@@ -97,6 +103,18 @@ const queryUsers = async (
   }
   if (filter.isBanned && ['true', 'false'].includes(filter.isBanned)) {
     where.isBanned = filter.isBanned === 'true';
+  }
+  if (filter.country) {
+    where.country = filter.country;
+  }
+  if (filter.purchaseStatus) {
+    where.purchaseStatus = filter.purchaseStatus;
+  }
+  if (filter.dateRange) {
+    where.createdAt = {
+      gte: filter.dateRange.from,
+      lte: filter.dateRange.to
+    };
   }
 
   const findManyArgs: Prisma.UserFindManyArgs = {

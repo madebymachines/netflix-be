@@ -7,21 +7,32 @@ const requestExport = {
       .valid('PARTICIPANTS', 'LEADERBOARD', 'VERIFICATIONS', 'SUBMISSIONS'),
     filters: Joi.object()
       .keys({
-        // For Participants
-        isBanned: Joi.string().valid('true', 'false').optional(),
-
-        // For Leaderboard
-        timespan: Joi.string().valid('alltime', 'weekly', 'streak').optional(),
-
-        // For Verifications & Submissions
+        // General
+        email: Joi.string().email().optional().allow(''),
+        country: Joi.string().optional(),
         dateRange: Joi.object({
           from: Joi.date().required(),
           to: Joi.date().required()
         }).optional(),
-        status: Joi.string().optional(),
 
-        // Optional for all
-        email: Joi.string().email().optional().allow('')
+        // Participants
+        isBanned: Joi.string().valid('true', 'false').optional(),
+        purchaseStatus: Joi.string()
+          .valid('NOT_VERIFIED', 'PENDING', 'APPROVED', 'REJECTED')
+          .optional(),
+
+        // Leaderboard
+        timespan: Joi.string().valid('alltime', 'weekly', 'streak').optional(),
+        limit: Joi.number().integer().min(1).optional(),
+
+        // Verifications
+        verificationType: Joi.string().valid('MEMBER_GYM', 'RECEIPT').optional(),
+
+        // Submissions
+        eventType: Joi.string().valid('INDIVIDUAL', 'GROUP').optional(),
+
+        // General Status for Verifications/Submissions
+        status: Joi.string().valid('PENDING', 'APPROVED', 'REJECTED').optional()
       })
       .required()
   })
