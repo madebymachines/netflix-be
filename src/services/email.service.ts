@@ -182,6 +182,27 @@ const sendVerificationEmail = async (to: string, token: string) => {
 };
 
 /**
+ * Send purchase approval email
+ * @param {string} to
+ * @param {string} name
+ * @returns {Promise}
+ */
+const sendPurchaseApprovalEmail = async (to: string, name: string) => {
+  const subject = 'Your Purchase Verification is Approved!';
+  const preheaderText = `Hi ${name}, great news! Your purchase verification has been successfully approved.`;
+
+  const content = `
+    <p>Hi ${name},</p>
+    <p>Great news! We have reviewed the receipt/proof of purchase you submitted, and we're happy to inform you that it has been **approved**.</p>
+    <p>You can now fully participate in all activities and start earning points.</p>
+    <p>Thank you for your participation!</p>
+  `;
+
+  const html = createHtmlTemplate(content, preheaderText);
+  await sendEmail(to, subject, html);
+};
+
+/**
  * Send purchase rejection email
  * @param {string} to
  * @param {string} name
@@ -237,6 +258,7 @@ export default {
   sendEmail,
   sendResetPasswordEmail,
   sendVerificationEmail,
+  sendPurchaseApprovalEmail,
   sendPurchaseRejectionEmail,
   sendExportReadyEmail
 };

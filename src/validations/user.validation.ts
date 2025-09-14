@@ -30,6 +30,16 @@ const getUser = {
   })
 };
 
+const getUserActivityHistory = {
+  params: Joi.object().keys({
+    userId: Joi.number().integer().required()
+  }),
+  query: Joi.object().keys({
+    limit: Joi.number().integer(),
+    page: Joi.number().integer()
+  })
+};
+
 const updateUser = {
   params: Joi.object().keys({
     userId: Joi.number().integer()
@@ -129,5 +139,6 @@ export default {
   rejectPurchase,
   getPurchaseVerifications,
   banUser,
-  unbanUser
+  unbanUser,
+  getUserActivityHistory
 };

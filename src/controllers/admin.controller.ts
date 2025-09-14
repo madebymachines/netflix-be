@@ -1,6 +1,12 @@
 import httpStatus from 'http-status';
 import catchAsync from '../utils/catchAsync';
-import { authService, userService, tokenService, activityService, exportService } from '../services';
+import {
+  authService,
+  userService,
+  tokenService,
+  activityService,
+  exportService
+} from '../services';
 import { Response } from 'express';
 import { AuthTokensResponse } from '../types/response';
 import config from '../config/config';
@@ -78,7 +84,7 @@ const createUser = catchAsync(async (req, res) => {
 });
 
 const getUsers = catchAsync(async (req, res) => {
-  const filter = pick(req.query, ['name', 'isBanned']);
+  const filter = pick(req.query, ['name', 'isBanned', 'gender', 'purchaseStatus']);
   const options = pick(req.query, ['sortBy', 'limit', 'page']);
   const result = await userService.queryUsers(filter, options);
   res.send({ message: 'Users retrieved successfully', ...result });
@@ -140,6 +146,13 @@ const getUserDetails = catchAsync(async (req, res) => {
   const { userId } = req.params;
   const userDetails = await userService.getUserDetailsById(parseInt(userId));
   res.status(httpStatus.OK).send({ message: 'User details retrieved', data: userDetails });
+});
+
+const getUserActivityHistory = catchAsync(async (req, res) => {
+  const { userId } = req.params;
+  const options = pick(req.query, ['limit', 'page']);
+  const result = await userService.queryUserActivityHistory(parseInt(userId), options);
+  res.status(httpStatus.OK).send(result);
 });
 
 const banUser = catchAsync(async (req, res) => {
@@ -208,5 +221,6 @@ export default {
   getActivitySubmissions,
   approveActivitySubmission,
   rejectActivitySubmission,
-  requestExport
+  requestExport,
+  getUserActivityHistory
 };

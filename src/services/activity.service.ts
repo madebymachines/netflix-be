@@ -223,7 +223,7 @@ const queryActivitySubmissions = async (
     where,
     include: {
       user: {
-        select: { name: true, email: true }
+        select: { id: true, name: true, email: true }
       }
     },
     orderBy: { [sortBy]: sortType }

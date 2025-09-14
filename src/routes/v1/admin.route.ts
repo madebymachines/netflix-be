@@ -48,6 +48,15 @@ router
   .route('/users/:userId/details')
   .get(auth('getUsers'), validate(userValidation.getUser), adminController.getUserDetails);
 
+// User Activity History Route (Paginated)
+router
+  .route('/users/:userId/activity-history')
+  .get(
+    auth('getUsers'),
+    validate(userValidation.getUserActivityHistory),
+    adminController.getUserActivityHistory
+  );
+
 // Ban/Unban Routes
 router
   .route('/users/:userId/ban')

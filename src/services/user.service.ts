@@ -1,11 +1,4 @@
-import {
-  User,
-  Prisma,
-  PurchaseStatus,
-  PurchaseVerification,
-  PurchaseType,
-  Gender
-} from '@prisma/client';
+import { User, Prisma, PurchaseStatus, PurchaseType, Gender } from '@prisma/client';
 import httpStatus from 'http-status';
 import prisma from '../client';
 import ApiError from '../utils/ApiError';
@@ -79,9 +72,8 @@ const queryUsers = async (
   filter: {
     name?: string;
     isBanned?: string;
-    country?: string;
+    gender?: Gender;
     purchaseStatus?: PurchaseStatus;
-    dateRange?: { from: Date; to: Date };
   },
   options: {
     limit?: number;
@@ -104,17 +96,11 @@ const queryUsers = async (
   if (filter.isBanned && ['true', 'false'].includes(filter.isBanned)) {
     where.isBanned = filter.isBanned === 'true';
   }
-  if (filter.country) {
-    where.country = filter.country;
+  if (filter.gender) {
+    where.gender = filter.gender;
   }
   if (filter.purchaseStatus) {
     where.purchaseStatus = filter.purchaseStatus;
-  }
-  if (filter.dateRange) {
-    where.createdAt = {
-      gte: filter.dateRange.from,
-      lte: filter.dateRange.to
-    };
   }
 
   const findManyArgs: Prisma.UserFindManyArgs = {
@@ -306,6 +292,8 @@ const reviewPurchaseVerification = async (
       verification.user.name,
       rejectionReason
     );
+  } else if (status === PurchaseStatus.APPROVED) {
+    await emailService.sendPurchaseApprovalEmail(verification.user.email, verification.user.name);
   }
 };
 
@@ -486,7 +474,7 @@ const getDashboardStats = async () => {
   };
 };
 
-const getUserGrowthStats = async (days: number = 30) => {
+const getUserGrowthStats = async (days = 30) => {
   const endDate = moment().endOf('day').toDate();
   const startDate = moment()
     .subtract(days - 1, 'days')
@@ -533,10 +521,7 @@ const getUserDetailsById = async (userId: number) => {
     where: { id: userId },
     include: {
       stats: true,
-      activityHistory: {
-        orderBy: { createdAt: 'desc' },
-        take: 10
-      },
+      // Hapus pengambilan activityHistory di sini
       purchaseVerifications: {
         orderBy: { submittedAt: 'desc' },
         take: 10
@@ -568,6 +553,36 @@ const getUserDetailsById = async (userId: number) => {
   };
 };
 
+const queryUserActivityHistory = async (
+  userId: number,
+  options: { limit?: number; page?: number }
+) => {
+  const page = options.page ?? 1;
+  const limit = options.limit ?? 10;
+
+  const [activities, totalItems] = await prisma.$transaction([
+    prisma.activityHistory.findMany({
+      where: { userId },
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { createdAt: 'desc' }
+    }),
+    prisma.activityHistory.count({ where: { userId } })
+  ]);
+
+  const totalPages = Math.ceil(totalItems / limit);
+
+  return {
+    data: activities,
+    pagination: {
+      currentPage: page,
+      limit,
+      totalItems,
+      totalPages
+    }
+  };
+};
+
 export default {
   createUser,
   queryUsers,
@@ -582,5 +597,6 @@ export default {
   unbanUserById,
   getDashboardStats,
   getUserGrowthStats,
-  getUserDetailsById
+  getUserDetailsById,
+  queryUserActivityHistory
 };

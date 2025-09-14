@@ -83,6 +83,7 @@ const getPublicLeaderboard = async (options: {
     const leaderboard = weeklyLeadersAggregate.map((agg, index) => {
       const user = usersMap[agg.userId];
       return {
+        userId: user.id,
         rank: skip + index + 1,
         username: user.username,
         profilePictureUrl: user.profilePictureUrl,
@@ -170,6 +171,7 @@ const getPublicLeaderboard = async (options: {
         return null;
       }
       const commonData = {
+        userId: stat.user.id,
         rank,
         username: stat.user.username,
         profilePictureUrl: stat.user.profilePictureUrl,
