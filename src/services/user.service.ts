@@ -440,7 +440,8 @@ const getDashboardStats = async () => {
     blockedUsers,
     pendingSubmissions,
     approvedSubmissions,
-    rejectedSubmissions
+    rejectedSubmissions,
+    flaggedSubmissions
   ] = await Promise.all([
     prisma.user.count(whereNotBanned),
     prisma.user.count({ where: { isBanned: false, createdAt: { gte: sevenDaysAgo } } }),
@@ -458,7 +459,10 @@ const getDashboardStats = async () => {
     prisma.activityHistory.count({
       where: { status: 'APPROVED', ...whereActivityNotBanned.where }
     }),
-    prisma.activityHistory.count({ where: { status: 'REJECTED', ...whereActivityNotBanned.where } })
+    prisma.activityHistory.count({
+      where: { status: 'REJECTED', ...whereActivityNotBanned.where }
+    }),
+    prisma.activityHistory.count({ where: { isFlagged: true, ...whereActivityNotBanned.where } })
   ]);
 
   return {
@@ -470,7 +474,8 @@ const getDashboardStats = async () => {
     blockedUsers,
     pendingSubmissions,
     approvedSubmissions,
-    rejectedSubmissions
+    rejectedSubmissions,
+    flaggedSubmissions
   };
 };
 

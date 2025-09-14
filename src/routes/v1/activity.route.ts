@@ -11,6 +11,7 @@ router
   .route('/')
   .post(
     auth(),
+    // activityLimiter, // Rate limiter dinonaktifkan untuk sementara
     upload.single('submissionImage'),
     validate(activityValidation.saveActivity),
     activityController.saveActivity

@@ -70,6 +70,8 @@ model ActivityHistory {
   reviewedAt         DateTime?
   createdAt          DateTime       @default(now())
   user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isFlagged          Boolean        @default(false)
+  flagReason         String?
 }
 
 model UserStats {

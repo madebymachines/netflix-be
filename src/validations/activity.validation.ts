@@ -20,6 +20,7 @@ const getActivitySubmissions = {
     status: Joi.string().valid(...Object.values(PurchaseStatus)),
     nameOrEmail: Joi.string(),
     eventType: Joi.string().valid('INDIVIDUAL', 'GROUP'),
+    isFlagged: Joi.boolean(), // Tambahkan validasi untuk isFlagged
     page: Joi.number().integer().min(1),
     limit: Joi.number().integer().min(1).max(100),
     sortBy: Joi.string().valid('createdAt', 'reviewedAt'),
