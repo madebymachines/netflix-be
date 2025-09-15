@@ -22,7 +22,7 @@ const requestExport = {
           .optional(),
 
         // Leaderboard
-        timespan: Joi.string().valid('alltime', 'weekly', 'streak').optional(),
+        timespan: Joi.string().valid('alltime', 'weekly', 'monthly', 'streak').optional(),
         limit: Joi.number().integer().min(1).optional(),
 
         // Verifications

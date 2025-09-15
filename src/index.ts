@@ -10,12 +10,16 @@ let server: HttpServer;
 prisma.$connect().then(() => {
   logger.info('Connected to SQL Database');
   const httpServer = new HttpServer(app);
+
+  // PERBAIKAN: Tambahkan konfigurasi CORS secara eksplisit di sini
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: config.cors.origin,
+      origin: config.cors.origin, // Pastikan ini sesuai dengan URL frontend Anda di Render
       methods: ['GET', 'POST'],
       credentials: true
-    }
+    },
+    // Menegaskan transports yang diizinkan
+    transports: ['websocket', 'polling']
   });
 
   socketService.init(io);

@@ -2,7 +2,7 @@ import prisma from '../client';
 import { Prisma } from '@prisma/client';
 import moment from 'moment';
 
-type Timespan = 'alltime' | 'streak' | 'weekly';
+type Timespan = 'alltime' | 'streak' | 'weekly' | 'monthly';
 
 /**
  * Mendapatkan data leaderboard publik.
@@ -20,9 +20,13 @@ const getPublicLeaderboard = async (options: {
   const skip = fetchAll ? 0 : (page - 1) * limit;
   const take = fetchAll ? undefined : limit;
 
-  if (timespan === 'weekly') {
-    const startOfWeek = moment().startOf('isoWeek').toDate();
-    const endOfWeek = moment().endOf('isoWeek').toDate();
+  if (timespan === 'weekly' || timespan === 'monthly') {
+    const startOfPeriod =
+      timespan === 'weekly'
+        ? moment().startOf('isoWeek').toDate()
+        : moment().startOf('month').toDate();
+    const endOfPeriod =
+      timespan === 'weekly' ? moment().endOf('isoWeek').toDate() : moment().endOf('month').toDate();
 
     const userFilter: Prisma.UserWhereInput = { isBanned: false };
     if (region) {
@@ -32,10 +36,10 @@ const getPublicLeaderboard = async (options: {
     const whereClause: Prisma.ActivityHistoryWhereInput = {
       user: userFilter,
       status: { in: ['APPROVED', 'PENDING'] },
-      createdAt: { gte: startOfWeek, lte: endOfWeek }
+      createdAt: { gte: startOfPeriod, lte: endOfPeriod }
     };
 
-    const weeklyLeadersAggregate = await prisma.activityHistory.groupBy({
+    const periodLeadersAggregate = await prisma.activityHistory.groupBy({
       by: ['userId'],
       where: whereClause,
       _sum: { pointsEarn: true },
@@ -51,7 +55,7 @@ const getPublicLeaderboard = async (options: {
     const totalItems = totalItemsAggregate.length;
     const totalPages = fetchAll ? 1 : Math.ceil(totalItems / limit);
 
-    const userIds = weeklyLeadersAggregate.map((u) => u.userId);
+    const userIds = periodLeadersAggregate.map((u) => u.userId);
     if (userIds.length === 0) {
       return {
         pagination: { currentPage: page, limit, totalItems, totalPages },
@@ -72,7 +76,7 @@ const getPublicLeaderboard = async (options: {
         userId: { in: userIds },
         eventType: 'INDIVIDUAL',
         status: { in: ['APPROVED', 'PENDING'] },
-        createdAt: { gte: startOfWeek, lte: endOfWeek }
+        createdAt: { gte: startOfPeriod, lte: endOfPeriod }
       }
     });
     const repsMap = totalRepsData.reduce<Record<number, number>>((map, item) => {
@@ -80,7 +84,7 @@ const getPublicLeaderboard = async (options: {
       return map;
     }, {});
 
-    const leaderboard = weeklyLeadersAggregate.map((agg, index) => {
+    const leaderboard = periodLeadersAggregate.map((agg, index) => {
       const user = usersMap[agg.userId];
       return {
         userId: user.id,
@@ -244,7 +248,7 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
     if (timespan === 'streak') return { ...baseResponse, streak: 0 };
 
     let totalReps = 0;
-    if (timespan === 'alltime' || timespan === 'weekly') {
+    if (timespan === 'alltime' || timespan === 'weekly' || timespan === 'monthly') {
       totalReps =
         (
           await prisma.activityHistory.aggregate({
@@ -259,26 +263,33 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
   let rank = 0;
 
   switch (timespan) {
-    case 'weekly': {
-      const startOfWeek = moment().startOf('isoWeek').toDate();
-      const endOfWeek = moment().endOf('isoWeek').toDate();
+    case 'weekly':
+    case 'monthly': {
+      const startOfPeriod =
+        timespan === 'weekly'
+          ? moment().startOf('isoWeek').toDate()
+          : moment().startOf('month').toDate();
+      const endOfPeriod =
+        timespan === 'weekly'
+          ? moment().endOf('isoWeek').toDate()
+          : moment().endOf('month').toDate();
 
-      const userWeeklyPoints = await prisma.activityHistory.aggregate({
+      const userPeriodPoints = await prisma.activityHistory.aggregate({
         _sum: { pointsEarn: true },
         where: {
           userId,
           status: { in: ['APPROVED', 'PENDING'] },
-          createdAt: { gte: startOfWeek, lte: endOfWeek }
+          createdAt: { gte: startOfPeriod, lte: endOfPeriod }
         }
       });
-      const userScore = userWeeklyPoints._sum.pointsEarn || 0;
+      const userScore = userPeriodPoints._sum.pointsEarn || 0;
 
       const allScores = await prisma.activityHistory.groupBy({
         by: ['userId'],
         where: {
           user: { isBanned: false },
           status: { in: ['APPROVED', 'PENDING'] },
-          createdAt: { gte: startOfWeek, lte: endOfWeek }
+          createdAt: { gte: startOfPeriod, lte: endOfPeriod }
         },
         _sum: { pointsEarn: true },
         orderBy: [{ _sum: { pointsEarn: 'desc' } }, { userId: 'asc' }]
@@ -287,13 +298,13 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
       const userRankIndex = allScores.findIndex((score) => score.userId === userId);
       rank = userRankIndex !== -1 ? userRankIndex + 1 : allScores.length + 1;
 
-      const userWeeklyReps = await prisma.activityHistory.aggregate({
+      const userPeriodReps = await prisma.activityHistory.aggregate({
         _sum: { pointsEarn: true },
         where: {
           userId,
           eventType: 'INDIVIDUAL',
           status: { in: ['APPROVED', 'PENDING'] },
-          createdAt: { gte: startOfWeek, lte: endOfWeek }
+          createdAt: { gte: startOfPeriod, lte: endOfPeriod }
         }
       });
 
@@ -301,7 +312,7 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
         ...commonData,
         rank,
         points: userScore,
-        totalReps: userWeeklyReps._sum.pointsEarn || 0
+        totalReps: userPeriodReps._sum.pointsEarn || 0
       };
     }
     case 'streak':
