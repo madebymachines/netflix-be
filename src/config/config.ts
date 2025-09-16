@@ -8,7 +8,9 @@ const envVarsSchema = Joi.object()
   .keys({
     APP_ENV: Joi.string().valid('production', 'development', 'test').required(),
     PORT: Joi.number().default(3000),
-    CORS_ORIGIN: Joi.string().required().description('URL for CORS'),
+    CORS_ORIGIN: Joi.string()
+      .required()
+      .description('URL for CORS, comma-separated for multiple origins'),
     FE_URL: Joi.string().required().description('URL for Frontend App'),
     JWT_SECRET: Joi.string().required().description('JWT secret key'),
     JWT_ACCESS_EXPIRATION_MINUTES: Joi.number()
@@ -30,7 +32,6 @@ const envVarsSchema = Joi.object()
     EMAIL_FROM: Joi.string().description('the from field in the emails sent by the app'),
     EMAIL_FROM_NAME: Joi.string().description('the from name in the emails sent by the app'),
     MOCK_EMAIL: Joi.boolean().default(false).description('mock email for development'),
-    // Konfigurasi AWS S3
     AWS_S3_BUCKET_NAME: Joi.string().required().description('AWS S3 bucket name'),
     AWS_S3_REGION: Joi.string().required().description('AWS S3 region'),
     AWS_ACCESS_KEY_ID: Joi.string().required().description('AWS access key ID'),
@@ -47,12 +48,25 @@ if (error) {
   throw new Error(`Config validation error: ${error.message}`);
 }
 
+const corsOrigin = envVars.CORS_ORIGIN;
+let originConfig: boolean | string | string[];
+
+if (corsOrigin === '*') {
+  originConfig = true;
+} else if (corsOrigin.includes(',')) {
+  // Jika ada koma, ubah menjadi array of strings
+  originConfig = corsOrigin.split(',').map((url: string) => url.trim());
+} else {
+  // Jika hanya satu URL, gunakan sebagai string
+  originConfig = corsOrigin;
+}
+
 export default {
   env: envVars.APP_ENV,
   port: envVars.PORT,
   feUrl: envVars.FE_URL,
   cors: {
-    origin: envVars.CORS_ORIGIN === '*' ? true : envVars.CORS_ORIGIN
+    origin: originConfig
   },
   jwt: {
     secret: envVars.JWT_SECRET,
