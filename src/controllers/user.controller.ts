@@ -9,15 +9,12 @@ import prisma from '../client';
 import { Request } from 'express';
 
 const createUser = catchAsync(async (req, res) => {
-  const { email, password, name, username, phoneNumber, country, gender } = req.body;
+  const { email, password, username, country } = req.body;
   const user = await userService.createUser({
     email,
     password,
-    name,
     username,
-    phoneNumber,
-    country,
-    gender
+    country
   });
   res.status(httpStatus.CREATED).send(exclude(user, ['password']));
 });
@@ -69,7 +66,7 @@ const getMe = catchAsync(async (req, res) => {
 
 const updateMe = catchAsync(async (req: Request, res) => {
   const user = req.user as User;
-  const updateBody = pick(req.body, ['name', 'username', 'phoneNumber', 'gender']);
+  const updateBody = pick(req.body, ['username']);
 
   if (Object.keys(updateBody).length === 0) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Please provide content to update.');

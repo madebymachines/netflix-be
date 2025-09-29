@@ -1,4 +1,4 @@
-import { PrismaClient, Gender, PurchaseStatus, PurchaseType } from '@prisma/client';
+import { PrismaClient, PurchaseStatus, PurchaseType } from '@prisma/client';
 import { faker } from '@faker-js/faker';
 import bcrypt from 'bcryptjs';
 
@@ -25,23 +25,17 @@ async function main() {
   const usersToCreate = [];
   const hashedPassword = await hashPassword('password123');
   const countries: ('SG' | 'TH' | 'MY')[] = ['SG', 'TH', 'MY'];
-  const genders: Gender[] = ['MALE', 'FEMALE'];
   const purchaseStatuses: PurchaseStatus[] = ['NOT_VERIFIED', 'PENDING', 'APPROVED', 'REJECTED'];
 
   for (let i = 0; i < userCount; i++) {
-    const firstName = faker.name.firstName();
-    const lastName = faker.name.lastName();
-    const name = `${firstName} ${lastName}`;
+    const username = faker.internet.userName() + `_${i}`;
     const purchaseStatus = faker.helpers.arrayElement(purchaseStatuses);
     usersToCreate.push({
-      name,
-      username: faker.internet.userName(firstName, lastName) + `_${i}`, // Tambahkan suffix untuk keunikan
-      email: faker.internet.email(firstName, lastName, `example${i}.com`), // Domain unik untuk email
+      username: username,
+      email: faker.internet.email(username, `example${i}.com`), // Domain unik untuk email
       password: hashedPassword,
-      phoneNumber: faker.phone.number(),
       profilePictureUrl: faker.image.avatar(),
       country: faker.helpers.arrayElement(countries),
-      gender: faker.helpers.arrayElement(genders),
       purchaseStatus,
       emailVerifiedAt: Math.random() < 0.8 ? faker.date.past() : null, // 80% email terverifikasi
       isBanned: Math.random() < 0.1, // 10% user dibanned

@@ -1,4 +1,4 @@
-import { PurchaseStatus, PurchaseType, Gender } from '@prisma/client';
+import { PurchaseStatus, PurchaseType } from '@prisma/client';
 import Joi from 'joi';
 import { password } from './custom.validation';
 
@@ -6,11 +6,8 @@ const createUser = {
   body: Joi.object().keys({
     email: Joi.string().required().email().lowercase(),
     password: Joi.string().required().custom(password),
-    name: Joi.string().required(),
     username: Joi.string().required(),
-    phoneNumber: Joi.string().optional(),
-    country: Joi.string().optional(),
-    gender: Joi.string().valid(...Object.values(Gender))
+    country: Joi.string().optional()
   })
 };
 
@@ -48,11 +45,8 @@ const updateUser = {
     .keys({
       email: Joi.string().email().lowercase(),
       password: Joi.string().custom(password),
-      name: Joi.string(),
       username: Joi.string(),
-      phoneNumber: Joi.string().optional().allow(''),
-      country: Joi.string().optional().allow(''),
-      gender: Joi.string().valid(...Object.values(Gender))
+      country: Joi.string().optional().allow('')
     })
     .min(1)
 };
@@ -60,10 +54,7 @@ const updateUser = {
 const updateMe = {
   body: Joi.object()
     .keys({
-      name: Joi.string(),
-      username: Joi.string(),
-      phoneNumber: Joi.string().optional().allow(''),
-      gender: Joi.string().valid(...Object.values(Gender))
+      username: Joi.string()
     })
     .min(1)
 };

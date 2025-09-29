@@ -1,4 +1,4 @@
-import { User, Prisma, PurchaseStatus, PurchaseType, Gender } from '@prisma/client';
+import { User, Prisma, PurchaseStatus, PurchaseType } from '@prisma/client';
 import httpStatus from 'http-status';
 import prisma from '../client';
 import ApiError from '../utils/ApiError';
@@ -17,7 +17,7 @@ const getUserByUsername = async <Key extends keyof User>(
   keys: Key[] = [
     'id',
     'email',
-    'name',
+    'username',
     'isBanned',
     'purchaseStatus',
     'createdAt',
@@ -33,11 +33,8 @@ const getUserByUsername = async <Key extends keyof User>(
 const createUser = async (userBody: {
   email: string;
   password: string;
-  name: string;
   username: string;
-  phoneNumber: string;
   country: string;
-  gender: Gender;
 }): Promise<User> => {
   if (await getUserByEmail(userBody.email)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
@@ -72,7 +69,6 @@ const queryUsers = async (
   filter: {
     name?: string;
     isBanned?: string;
-    gender?: Gender;
     purchaseStatus?: PurchaseStatus;
   },
   options: {
@@ -91,13 +87,10 @@ const queryUsers = async (
 
   const where: Prisma.UserWhereInput = {};
   if (filter.name) {
-    where.name = { contains: filter.name, mode: 'insensitive' };
+    where.username = { contains: filter.name, mode: 'insensitive' };
   }
   if (filter.isBanned && ['true', 'false'].includes(filter.isBanned)) {
     where.isBanned = filter.isBanned === 'true';
-  }
-  if (filter.gender) {
-    where.gender = filter.gender;
   }
   if (filter.purchaseStatus) {
     where.purchaseStatus = filter.purchaseStatus;
@@ -108,10 +101,8 @@ const queryUsers = async (
     select: {
       id: true,
       email: true,
-      name: true,
       username: true,
       country: true,
-      gender: true,
       isBanned: true,
       purchaseStatus: true,
       createdAt: true
@@ -153,12 +144,9 @@ const getUserById = async <Key extends keyof User>(
   keys: Key[] = [
     'id',
     'email',
-    'name',
     'username',
-    'phoneNumber',
     'profilePictureUrl',
     'country',
-    'gender',
     'purchaseStatus',
     'isBanned',
     'bannedAt',
@@ -176,9 +164,8 @@ const getUserByEmail = async <Key extends keyof User>(
   keys: Key[] = [
     'id',
     'email',
-    'name',
+    'username',
     'password',
-    'gender',
     'emailVerifiedAt',
     'isBanned',
     'bannedAt',
@@ -196,7 +183,7 @@ const getUserByEmail = async <Key extends keyof User>(
 const updateUserById = async <Key extends keyof User>(
   userId: number,
   updateBody: Prisma.UserUpdateInput,
-  keys: Key[] = ['id', 'email', 'name', 'username', 'phoneNumber', 'gender'] as Key[]
+  keys: Key[] = ['id', 'email', 'username'] as Key[]
 ): Promise<Pick<User, Key> | null> => {
   const user = await getUserById(userId, ['id', 'email', 'username']);
   if (!user) {
@@ -244,7 +231,7 @@ const reviewPurchaseVerification = async (
       user: {
         select: {
           email: true,
-          name: true
+          username: true
         }
       }
     }
@@ -289,11 +276,14 @@ const reviewPurchaseVerification = async (
   if (status === PurchaseStatus.REJECTED) {
     await emailService.sendPurchaseRejectionEmail(
       verification.user.email,
-      verification.user.name,
+      verification.user.username,
       rejectionReason
     );
   } else if (status === PurchaseStatus.APPROVED) {
-    await emailService.sendPurchaseApprovalEmail(verification.user.email, verification.user.name);
+    await emailService.sendPurchaseApprovalEmail(
+      verification.user.email,
+      verification.user.username
+    );
   }
 };
 
@@ -337,7 +327,7 @@ const queryPurchaseVerifications = async (
     where.user = {
       isBanned: false,
       OR: [
-        { name: { contains: filter.nameOrEmail, mode: 'insensitive' } },
+        { username: { contains: filter.nameOrEmail, mode: 'insensitive' } },
         { email: { contains: filter.nameOrEmail, mode: 'insensitive' } }
       ]
     };
@@ -355,9 +345,8 @@ const queryPurchaseVerifications = async (
       user: {
         select: {
           id: true,
-          name: true,
-          email: true,
-          username: true
+          username: true,
+          email: true
         }
       }
     },

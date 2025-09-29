@@ -28,11 +28,9 @@ const processParticipantsExport = async (filters: any) => {
   data.forEach((user: any) => {
     csvStream.write({
       ID: user.id,
-      Name: user.name,
       Username: user.username,
       Email: user.email,
       Country: user.country,
-      Gender: user.gender,
       'Verification Status': user.purchaseStatus,
       'Is Banned': user.isBanned,
       'Registered At': user.createdAt
@@ -70,14 +68,12 @@ const processLeaderboardExport = async (filters: any) => {
           Rank: 'rank',
           Username: 'username',
           Country: 'country',
-          Gender: 'gender',
           Streak: 'streak'
         }
       : {
           Rank: 'rank',
           Username: 'username',
           Country: 'country',
-          Gender: 'gender',
           Points: 'points'
         };
 
@@ -117,7 +113,7 @@ const processVerificationsExport = async (filters: any) => {
   data.forEach((item: any) => {
     csvStream.write({
       ID: item.id,
-      'User Name': item.user.name,
+      'User Username': item.user.username,
       'User Email': item.user.email,
       Type: item.type,
       Status: item.status,
@@ -154,7 +150,7 @@ const processSubmissionsExport = async (filters: any) => {
   data.forEach((item: any) => {
     csvStream.write({
       ID: item.id,
-      'User Name': item.user.name,
+      'User Username': item.user.username,
       'User Email': item.user.email,
       'Event Type': item.eventType,
       Points: item.pointsEarn,

@@ -1,4 +1,4 @@
-import { PrismaClient, Gender, PurchaseStatus } from '@prisma/client';
+import { PrismaClient, PurchaseStatus } from '@prisma/client';
 import { faker } from '@faker-js/faker';
 import bcrypt from 'bcryptjs';
 import logger from '../src/config/logger';
@@ -11,20 +11,14 @@ const hashPassword = (password: string) => {
 
 // Fungsi untuk membuat data pengguna palsu (disesuaikan untuk Faker v7)
 const createRandomUser = (hashedPassword: string) => {
-  const firstName = faker.name.firstName();
-  const lastName = faker.name.lastName();
-  const name = `${firstName} ${lastName}`;
-  const email = faker.internet.email(firstName, lastName).toLowerCase();
-  const username = faker.internet.userName(firstName, lastName);
+  const username = faker.internet.userName();
+  const email = faker.internet.email(username).toLowerCase();
 
   return {
-    name,
     username,
     email,
     password: hashedPassword,
-    phoneNumber: faker.phone.phoneNumber(),
     country: faker.helpers.arrayElement(['SG', 'TH', 'MY']),
-    gender: faker.helpers.arrayElement<Gender>(['MALE', 'FEMALE']),
     purchaseStatus: faker.helpers.arrayElement<PurchaseStatus>([
       'NOT_VERIFIED',
       'PENDING',

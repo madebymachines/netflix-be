@@ -301,7 +301,7 @@ const queryActivitySubmissions = async (
   if (filter.nameOrEmail) {
     if (where.user && typeof where.user === 'object') {
       where.user.OR = [
-        { name: { contains: filter.nameOrEmail, mode: 'insensitive' } },
+        { username: { contains: filter.nameOrEmail, mode: 'insensitive' } },
         { email: { contains: filter.nameOrEmail, mode: 'insensitive' } }
       ];
     }
@@ -317,7 +317,7 @@ const queryActivitySubmissions = async (
     where,
     include: {
       user: {
-        select: { id: true, name: true, email: true }
+        select: { id: true, username: true, email: true }
       }
     },
     orderBy: { [sortBy]: sortType }

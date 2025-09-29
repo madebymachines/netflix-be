@@ -92,7 +92,6 @@ const getPublicLeaderboard = async (options: {
         username: user.username,
         profilePictureUrl: user.profilePictureUrl,
         country: user.country,
-        gender: user.gender,
         totalReps: repsMap[user.id] || 0,
         points: agg._sum.pointsEarn || 0
       };
@@ -139,8 +138,7 @@ const getPublicLeaderboard = async (options: {
           id: true,
           username: true,
           profilePictureUrl: true,
-          country: true,
-          gender: true
+          country: true
         }
       }
     },
@@ -179,8 +177,7 @@ const getPublicLeaderboard = async (options: {
         rank,
         username: stat.user.username,
         profilePictureUrl: stat.user.profilePictureUrl,
-        country: stat.user.country,
-        gender: stat.user.gender
+        country: stat.user.country
       };
 
       if (timespan === 'streak') {
@@ -227,8 +224,7 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
     rank: 0,
     username: 'N/A',
     profilePictureUrl: null,
-    country: null,
-    gender: null
+    country: null
   };
 
   if (!user || user.isBanned) {
@@ -239,8 +235,7 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
   const commonData = {
     username: user.username,
     profilePictureUrl: user.profilePictureUrl,
-    country: user.country,
-    gender: user.gender
+    country: user.country
   };
 
   if (!user.stats) {

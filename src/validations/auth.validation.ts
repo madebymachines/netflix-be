@@ -3,13 +3,10 @@ import { password } from './custom.validation';
 
 const register = {
   body: Joi.object().keys({
-    name: Joi.string().required(),
     username: Joi.string().required(),
     email: Joi.string().required().email().lowercase(),
     password: Joi.string().required().custom(password),
-    phoneNumber: Joi.string().required(),
-    country: Joi.string().required().valid('SG', 'TH', 'MY'),
-    gender: Joi.string().required().valid('MALE', 'FEMALE')
+    country: Joi.string().required().valid('SG', 'TH', 'MY')
   })
 };
 
