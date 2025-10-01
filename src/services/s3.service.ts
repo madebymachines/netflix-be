@@ -1,4 +1,7 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { v4 as uuidv4 } from 'uuid';
 import config from '../config/config';
 import logger from '../config/logger';
 
@@ -10,69 +13,50 @@ const s3Client = new S3Client({
   }
 });
 
-/**
- * Mengunggah file ke S3.
- * @param {Buffer} fileBuffer - Buffer file.
- * @param {string} originalName - Nama asli file.
- * @param {string} mimetype - Tipe MIME file.
- * @param {string} subFolder - Sub-folder di dalam bucket (misalnya, 'profile-pictures', 'receipts').
- * @returns {Promise<string>} URL file.
- */
-const uploadFile = async (
+const baseFolder = config.aws.s3.baseFolder ? `${config.aws.s3.baseFolder}/` : '';
+
+async function uploadPrivateFile(
   fileBuffer: Buffer,
-  originalName: string,
-  mimetype: string,
-  subFolder: string // Diubah nama parameter dari 'folder' menjadi 'subFolder' agar lebih jelas
-): Promise<string> => {
-  // Ambil folder utama dari konfigurasi, jika tidak ada, gunakan string kosong.
-  const baseFolder = config.aws.s3.baseFolder ? `${config.aws.s3.baseFolder}/` : '';
+  ext: string,
+  contentType: string,
+  subFolder: string
+) {
+  const key = `${baseFolder}${subFolder}/${uuidv4()}.${ext}`;
 
-  // Gabungkan folder utama, sub-folder, dan nama file unik.
-  const key = `${baseFolder}${subFolder}/${Date.now()}_${originalName.replace(/\s/g, '_')}`;
+  await s3Client.send(
+    new PutObjectCommand({
+      Bucket: config.aws.s3.bucketName,
+      Key: key,
+      Body: fileBuffer,
+      ContentType: contentType,
+      // Simpan PRIVATE (default). Jangan ACL public-read.
+      // Server-side encryption opsional:
+      ServerSideEncryption: 'AES256',
+      // Tagging bisa dipakai untuk workflow AV (pending-scan=true)
+      Tagging: 'scan=pending'
+    })
+  );
 
-  const uploadParams = {
-    Bucket: config.aws.s3.bucketName,
-    Key: key,
-    Body: fileBuffer,
-    ContentType: mimetype
-  };
+  // jangan return URL publik
+  return { key };
+}
 
-  await s3Client.send(new PutObjectCommand(uploadParams));
-
-  return `https://${config.aws.s3.bucketName}.s3.${config.aws.s3.region}.amazonaws.com/${key}`;
-};
-
-/**
- * Menghapus file dari S3 berdasarkan URL-nya.
- * @param {string | null | undefined} fileUrl - URL lengkap file yang akan dihapus.
- * @returns {Promise<void>}
- */
-const deleteFileByUrl = async (fileUrl: string | null | undefined): Promise<void> => {
-  if (!fileUrl) {
-    logger.info('Tidak ada URL file yang diberikan untuk dihapus.');
-    return;
-  }
-
+async function deleteByUrl(fileUrl?: string | null) {
+  if (!fileUrl) return;
   try {
     const key = new URL(fileUrl).pathname.substring(1);
-    if (!key) {
-      logger.warn(`Tidak dapat mengekstrak key dari URL: ${fileUrl}`);
-      return;
-    }
-
-    const deleteParams = {
-      Bucket: config.aws.s3.bucketName,
-      Key: key
-    };
-
-    await s3Client.send(new DeleteObjectCommand(deleteParams));
-    logger.info(`Berhasil menghapus file dari S3: ${key}`);
-  } catch (error) {
-    logger.error(`Gagal menghapus file dari S3 dengan URL ${fileUrl}:`, error);
+    if (!key) return;
+    await s3Client.send(new DeleteObjectCommand({ Bucket: config.aws.s3.bucketName, Key: key }));
+    logger.info(`Deleted S3 object: ${key}`);
+  } catch (e) {
+    logger.error('Delete S3 failed', e);
   }
-};
+}
 
-export default {
-  uploadFile,
-  deleteFileByUrl
-};
+// Presigned URL (mis. 10 menit)
+async function getPresignedUrl(key: string, expiresInSec = 600) {
+  const cmd = new GetObjectCommand({ Bucket: config.aws.s3.bucketName, Key: key });
+  return getSignedUrl(s3Client, cmd, { expiresIn: expiresInSec });
+}
+
+export default { uploadPrivateFile, deleteByUrl, getPresignedUrl };

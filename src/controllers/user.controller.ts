@@ -7,6 +7,8 @@ import { User, PurchaseStatus } from '@prisma/client';
 import exclude from '../utils/exclude';
 import prisma from '../client';
 import { Request } from 'express';
+import { sanitizeImageOrThrow } from '../utils/imageGuard';
+import config from '../config/config';
 
 const createUser = catchAsync(async (req, res) => {
   const { email, password, username, country } = req.body;
@@ -82,31 +84,35 @@ const updateMe = catchAsync(async (req: Request, res) => {
 const updateProfilePicture = catchAsync(async (req: Request, res) => {
   const user = req.user as User;
   const file = req.file;
+  if (!file) throw new ApiError(httpStatus.BAD_REQUEST, 'Profile picture file is required.');
 
-  if (!file) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Profile picture file is required.');
-  }
+  // 1) Validasi signature + re-encode
+  const { bufferBersih, mimeFinal, extFinal } = await sanitizeImageOrThrow(file.buffer);
 
+  // 2) Hapus foto lama (jika sebelumnya Anda simpan sebagai URL publik, tetap boleh pakai penghapus yang ada)
   const currentUser = await userService.getUserById(user.id, ['profilePictureUrl']);
-
   if (currentUser?.profilePictureUrl) {
-    await s3Service.deleteFileByUrl(currentUser.profilePictureUrl);
+    await s3Service.deleteByUrl(currentUser.profilePictureUrl);
   }
 
-  const newProfilePictureUrl = await s3Service.uploadFile(
-    file.buffer,
-    file.originalname,
-    file.mimetype,
+  // 3) Upload PRIVATE dengan nama acak
+  const { key } = await s3Service.uploadPrivateFile(
+    bufferBersih,
+    extFinal,
+    mimeFinal,
     'profile-pictures'
   );
 
-  const updatedUser = await userService.updateUserById(user.id, {
-    profilePictureUrl: newProfilePictureUrl
-  });
+  // 4) Simpan KEY (bukan URL publik) di DB
+  const s3KeyUrl = `s3://${config.aws.s3.bucketName}/${key}`;
+  const updatedUser = await userService.updateUserById(user.id, { profilePictureUrl: s3KeyUrl });
+
+  // 5) Beri presigned URL untuk penggunaan segera di frontend
+  const presignedUrl = await s3Service.getPresignedUrl(key);
 
   res.send({
     message: 'Profile picture updated successfully.',
-    profilePictureUrl: updatedUser?.profilePictureUrl
+    profilePictureUrl: presignedUrl
   });
 });
 
@@ -116,7 +122,7 @@ const deleteProfilePicture = catchAsync(async (req: Request, res) => {
   const currentUser = await userService.getUserById(user.id, ['profilePictureUrl']);
 
   if (currentUser?.profilePictureUrl) {
-    await s3Service.deleteFileByUrl(currentUser.profilePictureUrl);
+    await s3Service.deleteByUrl(currentUser.profilePictureUrl);
     await userService.updateUserById(user.id, { profilePictureUrl: null });
   }
 
@@ -149,12 +155,8 @@ const uploadPurchaseVerification = catchAsync(async (req: Request, res) => {
   }
 
   const existingPending = await prisma.purchaseVerification.findFirst({
-    where: {
-      userId: user.id,
-      status: PurchaseStatus.PENDING
-    }
+    where: { userId: user.id, status: PurchaseStatus.PENDING }
   });
-
   if (existingPending) {
     throw new ApiError(
       httpStatus.BAD_REQUEST,
@@ -162,20 +164,24 @@ const uploadPurchaseVerification = catchAsync(async (req: Request, res) => {
     );
   }
 
-  const newReceiptImageUrl = await s3Service.uploadFile(
-    file.buffer,
-    file.originalname,
-    file.mimetype,
-    'receipts'
-  );
+  // 1) Validasi magic-bytes + re-encode untuk sanitasi
+  const { bufferBersih, mimeFinal, extFinal } = await sanitizeImageOrThrow(file.buffer);
 
+  // 2) Upload PRIVATE ke S3 dengan nama acak (tanpa pakai originalname)
+  const { key } = await s3Service.uploadPrivateFile(bufferBersih, extFinal, mimeFinal, 'receipts');
+
+  // 3) Simpan IDENTIFIER/KEY, bukan URL publik permanen
+  //    (Jika schema Anda pakai 'receiptImageUrl', kita isi dengan format s3:// agar tidak bisa diakses publik)
+  const s3UrlLike = `s3://${config.aws.s3.bucketName}/${key}`;
+
+  // 4) Transaksi DB: buat record verifikasi + set status user -> PENDING
   await prisma.$transaction(async (tx) => {
     await tx.purchaseVerification.create({
       data: {
         userId: user.id,
-        receiptImageUrl: newReceiptImageUrl,
+        receiptImageUrl: s3UrlLike,
         status: PurchaseStatus.PENDING,
-        type: type
+        type
       }
     });
 

@@ -193,8 +193,8 @@ const processJob = async (jobId: string) => {
         throw new Error('Unsupported export type');
     }
 
-    const fileName = `${job.type.toLowerCase()}_${Date.now()}.csv`;
-    const downloadUrl = await s3Service.uploadFile(fileBuffer, fileName, 'text/csv', 'exports');
+    const { key } = await s3Service.uploadPrivateFile(fileBuffer, 'csv', 'text/csv', 'exports');
+    const downloadUrl = await s3Service.getPresignedUrl(key, 86400);
 
     const updatedJob = await prisma.exportJob.update({
       where: { jobId },
