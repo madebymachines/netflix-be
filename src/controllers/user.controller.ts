@@ -66,6 +66,16 @@ const getMe = catchAsync(async (req, res) => {
   });
 });
 
+const getProfilePictureUrl = catchAsync(async (req: Request, res) => {
+  const user = req.user as User;
+  const me = await userService.getUserById(user.id, ['profilePictureUrl']);
+  if (!me?.profilePictureUrl) return res.send({ url: null });
+
+  const key = me.profilePictureUrl.replace(`s3://${config.aws.s3.bucketName}/`, '');
+  const url = await s3Service.getPresignedUrl(key, 600);
+  res.send({ url });
+});
+
 const updateMe = catchAsync(async (req: Request, res) => {
   const user = req.user as User;
   const updateBody = pick(req.body, ['username']);
@@ -219,6 +229,7 @@ export default {
   createUser,
   getUsers,
   getMe,
+  getProfilePictureUrl,
   updateMe,
   updateProfilePicture,
   deleteProfilePicture,

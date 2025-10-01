@@ -20,7 +20,8 @@ router
     validate(userValidation.updateProfilePicture),
     userController.updateProfilePicture
   )
-  .delete(auth(), userController.deleteProfilePicture);
+  .delete(auth(), userController.deleteProfilePicture)
+  .get(auth(), userController.getProfilePictureUrl);
 
 router
   .route('/purchase-verification')
