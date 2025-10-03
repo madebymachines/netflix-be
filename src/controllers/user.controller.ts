@@ -42,8 +42,37 @@ const getMe = catchAsync(async (req, res) => {
   if (!userDetails) {
     throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
   }
-  // Override purchase status with the latest record's status
   userDetails.purchaseStatus = purchaseStatus;
+
+  const RAW = userDetails.profilePictureUrl ?? null;
+  const BUCKET = config.aws.s3.bucketName;
+  const REGION = config.aws.s3.region;
+  const EXPIRES = 600;
+
+  try {
+    if (RAW) {
+      let key: string | null = null;
+
+      const s3Prefix = `s3://${BUCKET}/`;
+      if (RAW.startsWith(s3Prefix)) {
+        key = RAW.slice(s3Prefix.length);
+      } else {
+        const url = new URL(RAW);
+        const isS3Host = url.hostname === `${BUCKET}.s3.${REGION}.amazonaws.com`;
+        const isAlreadySigned = url.searchParams.has('X-Amz-Algorithm');
+        if (isS3Host && !isAlreadySigned) {
+          key = url.pathname.replace(/^\/+/, '');
+        }
+      }
+
+      if (key) {
+        const signed = await s3Service.getPresignedUrl(key, EXPIRES);
+        userDetails.profilePictureUrl = signed;
+      }
+    }
+  } catch {
+    // jika gagal presign, biarkan apa adanya (frontend akan fallback)
+  }
 
   const [userStats, totalRepsResult] = await Promise.all([
     prisma.userStats.findUnique({ where: { userId: user.id } }),
@@ -64,16 +93,6 @@ const getMe = catchAsync(async (req, res) => {
     profile: exclude(userDetails, ['password']),
     stats: statsResponse
   });
-});
-
-const getProfilePictureUrl = catchAsync(async (req: Request, res) => {
-  const user = req.user as User;
-  const me = await userService.getUserById(user.id, ['profilePictureUrl']);
-  if (!me?.profilePictureUrl) return res.send({ url: null });
-
-  const key = me.profilePictureUrl.replace(`s3://${config.aws.s3.bucketName}/`, '');
-  const url = await s3Service.getPresignedUrl(key, 600);
-  res.send({ url });
 });
 
 const updateMe = catchAsync(async (req: Request, res) => {
@@ -229,7 +248,6 @@ export default {
   createUser,
   getUsers,
   getMe,
-  getProfilePictureUrl,
   updateMe,
   updateProfilePicture,
   deleteProfilePicture,
