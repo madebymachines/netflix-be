@@ -16,7 +16,6 @@ if (config.env !== 'test') {
     );
 }
 
-// Helper untuk membuat template email HTML dasar
 const createHtmlTemplate = (content: string, preheaderText: string) => `
 <!DOCTYPE html>
 <html lang="en">
@@ -140,21 +139,16 @@ const sendEmail = async (to: string, subject: string, html: string) => {
  * @param {string} token
  * @returns {Promise}
  */
-const sendResetPasswordEmail = async (to: string, name: string, token: string) => {
-  const subject = 'Reset Your Password';
-  const preheaderText = `Hi ${name}, We've received a request to reset the password for your account.`;
-  const resetPasswordUrl = `${config.feUrl}/reset-password?token=${token}`;
-
+const sendResetPasswordOtpEmail = async (to: string, name: string, otp: string) => {
+  const subject = 'Your Password Reset OTP';
+  const preheaderText = `Hi ${name}, use the OTP below to reset your password.`;
   const content = `
     <p>Hi ${name},</p>
-    <p>We've received a request to reset the password for your account.</p>
-    <p>To reset your password, please click on the following link:</p>
-    <p><a href="${resetPasswordUrl}" class="link">${resetPasswordUrl}</a></p>
-    <p>This link is valid for 24 hours. If you don't reset your password within this time, you'll need to submit another request.</p>
-    <p>If you did not request this reset, please ignore this email. Your password will remain unchanged.</p>
-    <p>Thank you.</p>
+    <p>Please use the following One-Time Password (OTP) to reset your password. Do not share this code with anyone.</p>
+    <div class="otp-box">${otp.split('').join(' ')}</div>
+    <p>This code is valid for the next ${config.jwt.verifyEmailExpirationMinutes} minutes.</p>
+    <p>If you did not request this, you can ignore this email.</p>
   `;
-
   const html = createHtmlTemplate(content, preheaderText);
   await sendEmail(to, subject, html);
 };
@@ -256,7 +250,7 @@ const sendExportReadyEmail = async (to: string, name: string, downloadUrl: strin
 export default {
   transport,
   sendEmail,
-  sendResetPasswordEmail,
+  sendResetPasswordOtpEmail,
   sendVerificationEmail,
   sendPurchaseApprovalEmail,
   sendPurchaseRejectionEmail,

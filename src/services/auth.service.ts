@@ -95,26 +95,43 @@ const refreshAuth = async (refreshToken: string): Promise<AuthTokensResponse> =>
   }
 };
 
-const resetPassword = async (resetPasswordToken: string, newPassword: string): Promise<void> => {
-  try {
-    const resetPasswordTokenData = await tokenService.verifyToken(
-      resetPasswordToken,
-      TokenType.RESET_PASSWORD
-    );
-    const userId = resetPasswordTokenData.userId;
-    if (!userId) {
-      throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid token');
+const requestResetPasswordOtp = async (email: string): Promise<void> => {
+  const user = await userService.getUserByEmail(email, ['id', 'email', 'username']);
+  if (!user) return;
+
+  const otp = await tokenService.generateResetPasswordOtp(email);
+  await emailService.sendResetPasswordOtpEmail(user.email, user.username ?? user.email, otp);
+};
+
+const resetPasswordWithOtp = async (
+  email: string,
+  otp: string,
+  newPassword: string
+): Promise<void> => {
+  const user = await userService.getUserByEmail(email, ['id', 'email']);
+  if (!user) throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid email or OTP');
+
+  const tokenRow = await prisma.token.findFirst({
+    where: {
+      userId: user.id,
+      type: TokenType.RESET_PASSWORD,
+      token: otp,
+      blacklisted: false,
+      expires: { gt: new Date() }
     }
-    const user = await userService.getUserById(userId);
-    if (!user) {
-      throw new Error();
-    }
-    const hashedPassword = await encryptPassword(newPassword);
-    await userService.updateUserById(user.id, { password: hashedPassword });
-    await prisma.token.deleteMany({ where: { userId: user.id, type: TokenType.RESET_PASSWORD } });
-  } catch (error) {
-    throw new ApiError(httpStatus.UNAUTHORIZED, 'Password reset failed');
+  });
+
+  if (!tokenRow) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid or expired OTP');
   }
+
+  const hashedPassword = await encryptPassword(newPassword);
+  await userService.updateUserById(user.id, { password: hashedPassword });
+
+  // OTP sekali pakai: bersihkan semua OTP reset yang masih ada
+  await prisma.token.deleteMany({
+    where: { userId: user.id, type: TokenType.RESET_PASSWORD }
+  });
 };
 
 const verifyEmail = async (email: string, otp: string): Promise<User> => {
@@ -172,7 +189,8 @@ export default {
   loginAdminWithEmailAndPassword,
   logout,
   refreshAuth,
-  resetPassword,
+  requestResetPasswordOtp,
+  resetPasswordWithOtp,
   verifyEmail,
   resendVerificationEmail
 };
