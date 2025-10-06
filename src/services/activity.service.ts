@@ -4,6 +4,8 @@ import moment from 'moment';
 import s3Service from './s3.service';
 import ApiError from '../utils/ApiError';
 import httpStatus from 'http-status';
+import { sanitizeImageOrThrow } from '../utils/imageGuard';
+import config from '../config/config';
 
 /**
  * Menyimpan aktivitas baru, memperbarui statistik pengguna, dan menerapkan pemeriksaan anti-cheat.
@@ -12,6 +14,7 @@ import httpStatus from 'http-status';
  * @param {Express.Multer.File} file - File gambar yang diunggah.
  * @returns {Promise<object>}
  */
+
 const saveActivity = async (
   userId: number,
   activityBody: {
@@ -20,184 +23,195 @@ const saveActivity = async (
   },
   file: Express.Multer.File
 ) => {
+  if (!file) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Submission image is required');
+  }
+
   const { eventType, pointsEarn: originalPointsEarn } = activityBody;
   const MAX_POINTS = 150;
 
-  const imageUrl = await s3Service.uploadFile(
-    file.buffer,
-    file.originalname,
-    file.mimetype,
-    'submission'
-  );
+  // helper untuk hapus by key via deleteByUrl (service kamu menerima URL)
+  const httpsUrlForKey = (key: string) =>
+    `https://${config.aws.s3.bucketName}.s3.${config.aws.s3.region}.amazonaws.com/${key}`;
 
-  return prisma.$transaction(async (tx) => {
-    let isFlagged = false;
-    const flagReasons: string[] = [];
+  let uploadedKey: string | null = null;
 
-    // 1. Sanity Check & Flagging Poin Ekstrem
-    let finalPointsEarn = originalPointsEarn;
-    if (originalPointsEarn > MAX_POINTS) {
-      finalPointsEarn = MAX_POINTS; // Batasi poin yang didapat
-      flagReasons.push(
-        `Extreme points submitted: requested ${originalPointsEarn}, capped at ${MAX_POINTS}.`
-      );
-    }
+  try {
+    // 1) Validasi signature + re-encode
+    const { bufferBersih, mimeFinal, extFinal } = await sanitizeImageOrThrow(file.buffer);
 
-    // 2. Flagging Peningkatan Drastis
-    const sevenDaysAgo = moment().subtract(7, 'days').startOf('day').toDate();
-    const todayStart = moment().startOf('day').toDate();
-
-    const pastActivities = await tx.activityHistory.findMany({
-      where: {
-        userId,
-        createdAt: { gte: sevenDaysAgo, lt: todayStart },
-        status: { not: 'REJECTED' }
-      }
-    });
-
-    const dailyPoints: { [key: string]: number } = {};
-    pastActivities.forEach((activity) => {
-      const day = moment(activity.createdAt).format('YYYY-MM-DD');
-      dailyPoints[day] = (dailyPoints[day] || 0) + activity.pointsEarn;
-    });
-
-    const numDaysWithActivity = Object.keys(dailyPoints).length;
-    const totalPastPoints = Object.values(dailyPoints).reduce((sum, points) => sum + points, 0);
-    const averageDailyPoints = numDaysWithActivity > 0 ? totalPastPoints / numDaysWithActivity : 0;
-
-    const todayActivities = await tx.activityHistory.findMany({
-      where: {
-        userId,
-        createdAt: { gte: todayStart },
-        status: { not: 'REJECTED' }
-      }
-    });
-    const pointsSoFarToday = todayActivities.reduce(
-      (sum, activity) => sum + activity.pointsEarn,
-      0
+    // 2) Upload PRIVATE ke S3 (nama acak)
+    const { key } = await s3Service.uploadPrivateFile(
+      bufferBersih,
+      extFinal,
+      mimeFinal,
+      'submission'
     );
-    const projectedTodayTotal = pointsSoFarToday + finalPointsEarn;
+    uploadedKey = key;
 
-    if (averageDailyPoints > 10 && projectedTodayTotal > averageDailyPoints * 10) {
-      flagReasons.push(
-        `Drastic daily increase: today's ${projectedTodayTotal} vs avg ${averageDailyPoints.toFixed(
-          0
-        )}.`
-      );
-    }
+    // 3) Simpan identifier (bukan URL publik)
+    const imageUrl = `s3://${config.aws.s3.bucketName}/${key}`;
 
-    // 3. Flagging Konsistensi Sempurna (10 kali berturut-turut)
-    const recentActivitiesForConsistency = await tx.activityHistory.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 9 // Ambil 9 aktivitas terakhir untuk diperiksa dengan yang sekarang
-    });
+    // 4) Semua operasi DB dalam satu transaksi
+    return await prisma.$transaction(async (tx) => {
+      let isFlagged = false;
+      const flagReasons: string[] = [];
 
-    if (recentActivitiesForConsistency.length === 9) {
-      const allSame = recentActivitiesForConsistency.every(
-        (activity) => activity.pointsEarn === finalPointsEarn
-      );
-      if (allSame && finalPointsEarn > 0) {
-        flagReasons.push(`Perfect consistency: last 10 submissions had ${finalPointsEarn} points.`);
-      }
-    }
-
-    // 4. Flagging Rapid Submission (Velocity Check)
-    const lastActivity = await tx.activityHistory.findFirst({
-      where: { userId },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    if (lastActivity) {
-      const secondsSinceLastSubmit = moment().diff(moment(lastActivity.createdAt), 'seconds');
-      const RAPID_SUBMISSION_THRESHOLD_SECONDS = 60; // Batas waktu diubah menjadi 60 detik
-
-      if (secondsSinceLastSubmit < RAPID_SUBMISSION_THRESHOLD_SECONDS) {
+      // Sanity cap points
+      let finalPointsEarn = originalPointsEarn;
+      if (originalPointsEarn > MAX_POINTS) {
+        finalPointsEarn = MAX_POINTS;
         flagReasons.push(
-          `Rapid submission: new activity submitted ${secondsSinceLastSubmit}s after the previous one.`
+          `Extreme points submitted: requested ${originalPointsEarn}, capped at ${MAX_POINTS}.`
         );
       }
-    }
 
-    // Finalisasi status flagging
-    if (flagReasons.length > 0) {
-      isFlagged = true;
-    }
+      // Drastic increase detection (vs 7-day average)
+      const sevenDaysAgo = moment().subtract(7, 'days').startOf('day').toDate();
+      const todayStart = moment().startOf('day').toDate();
 
-    // Dapatkan atau buat UserStats
-    let userStats = await tx.userStats.findUnique({
-      where: { userId }
-    });
-    if (!userStats) {
-      userStats = await tx.userStats.create({ data: { userId } });
-    }
+      const pastActivities = await tx.activityHistory.findMany({
+        where: {
+          userId,
+          createdAt: { gte: sevenDaysAgo, lt: todayStart },
+          status: { not: 'REJECTED' }
+        }
+      });
 
-    const today = moment().startOf('day');
-    const lastUpdatedDay = moment(userStats.lastUpdated).startOf('day');
-    let currentStreak = userStats.currentStreak;
-    let topStreak = userStats.topStreak;
-    let isTopStreakUpdated = false;
+      const dailyPoints: Record<string, number> = {};
+      pastActivities.forEach((a) => {
+        const day = moment(a.createdAt).format('YYYY-MM-DD');
+        dailyPoints[day] = (dailyPoints[day] || 0) + a.pointsEarn;
+      });
 
-    // Logika Streak
-    if (userStats.totalChallenges === 0) {
-      currentStreak = 1;
-    } else {
-      const diffDays = today.diff(lastUpdatedDay, 'days');
-      if (diffDays === 1) {
-        currentStreak++;
-      } else if (diffDays > 1) {
+      const numDaysWithActivity = Object.keys(dailyPoints).length;
+      const totalPastPoints = Object.values(dailyPoints).reduce((s, p) => s + p, 0);
+      const averageDailyPoints =
+        numDaysWithActivity > 0 ? totalPastPoints / numDaysWithActivity : 0;
+
+      const todayActivities = await tx.activityHistory.findMany({
+        where: {
+          userId,
+          createdAt: { gte: todayStart },
+          status: { not: 'REJECTED' }
+        }
+      });
+      const pointsSoFarToday = todayActivities.reduce((s, a) => s + a.pointsEarn, 0);
+      const projectedTodayTotal = pointsSoFarToday + finalPointsEarn;
+
+      if (averageDailyPoints > 10 && projectedTodayTotal > averageDailyPoints * 10) {
+        flagReasons.push(
+          `Drastic daily increase: today's ${projectedTodayTotal} vs avg ${averageDailyPoints.toFixed(
+            0
+          )}.`
+        );
+      }
+
+      // Perfect consistency (10 submissions sama)
+      const recentActivities = await tx.activityHistory.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 9
+      });
+      if (recentActivities.length === 9) {
+        const allSame = recentActivities.every((a) => a.pointsEarn === finalPointsEarn);
+        if (allSame && finalPointsEarn > 0) {
+          flagReasons.push(
+            `Perfect consistency: last 10 submissions had ${finalPointsEarn} points.`
+          );
+        }
+      }
+
+      // Rapid submission (velocity)
+      const lastActivity = await tx.activityHistory.findFirst({
+        where: { userId },
+        orderBy: { createdAt: 'desc' }
+      });
+      if (lastActivity) {
+        const secondsSinceLast = moment().diff(moment(lastActivity.createdAt), 'seconds');
+        const THRESHOLD = 60;
+        if (secondsSinceLast < THRESHOLD) {
+          flagReasons.push(
+            `Rapid submission: new activity submitted ${secondsSinceLast}s after the previous one.`
+          );
+        }
+      }
+
+      if (flagReasons.length > 0) isFlagged = true;
+
+      // Ambil/siapkan userStats
+      let userStats = await tx.userStats.findUnique({ where: { userId } });
+      if (!userStats) userStats = await tx.userStats.create({ data: { userId } });
+
+      // Streak logic
+      const today = moment().startOf('day');
+      const lastUpdatedDay = moment(userStats.lastUpdated).startOf('day');
+      let currentStreak = userStats.currentStreak;
+      let topStreak = userStats.topStreak;
+      let isTopStreakUpdated = false;
+
+      if (userStats.totalChallenges === 0) {
         currentStreak = 1;
+      } else {
+        const diffDays = today.diff(lastUpdatedDay, 'days');
+        if (diffDays === 1) currentStreak++;
+        else if (diffDays > 1) currentStreak = 1;
       }
-    }
 
-    if (currentStreak > topStreak) {
-      topStreak = currentStreak;
-      isTopStreakUpdated = true;
-    }
-
-    // Perbarui UserStats menggunakan poin yang sudah divalidasi
-    const updatedStats = await tx.userStats.update({
-      where: { userId },
-      data: {
-        totalPoints: { increment: finalPointsEarn },
-        totalChallenges: { increment: 1 },
-        currentStreak: currentStreak,
-        topStreak: topStreak
+      if (currentStreak > topStreak) {
+        topStreak = currentStreak;
+        isTopStreakUpdated = true;
       }
+
+      // Update stats pakai poin final
+      const updatedStats = await tx.userStats.update({
+        where: { userId },
+        data: {
+          totalPoints: { increment: finalPointsEarn },
+          totalChallenges: { increment: 1 },
+          currentStreak,
+          topStreak
+        }
+      });
+
+      const submissionStatus =
+        eventType === 'INDIVIDUAL' ? PurchaseStatus.APPROVED : PurchaseStatus.PENDING;
+      const message =
+        eventType === 'INDIVIDUAL'
+          ? 'Activity saved successfully.'
+          : 'Activity saved and is pending review.';
+
+      // Simpan ActivityHistory
+      await tx.activityHistory.create({
+        data: {
+          userId,
+          eventType,
+          pointsEarn: finalPointsEarn,
+          pointsFrom: userStats.totalPoints,
+          pointsTo: updatedStats.totalPoints,
+          submissionImageUrl: imageUrl,
+          status: submissionStatus,
+          reviewedAt: submissionStatus === PurchaseStatus.APPROVED ? new Date() : null,
+          isFlagged,
+          flagReason: flagReasons.join(' | ')
+        }
+      });
+
+      return {
+        message,
+        pointsEarned: finalPointsEarn,
+        streakStatus: {
+          currentStreak: updatedStats.currentStreak,
+          isTopStreakUpdated
+        }
+      };
     });
-
-    const submissionStatus =
-      eventType === 'INDIVIDUAL' ? PurchaseStatus.APPROVED : PurchaseStatus.PENDING;
-    const message =
-      eventType === 'INDIVIDUAL'
-        ? 'Activity saved successfully.'
-        : 'Activity saved and is pending review.';
-
-    // Buat entri ActivityHistory dengan data flagging
-    await tx.activityHistory.create({
-      data: {
-        userId,
-        eventType,
-        pointsEarn: finalPointsEarn,
-        pointsFrom: userStats.totalPoints,
-        pointsTo: updatedStats.totalPoints,
-        submissionImageUrl: imageUrl,
-        status: submissionStatus,
-        reviewedAt: submissionStatus === PurchaseStatus.APPROVED ? new Date() : null,
-        isFlagged: isFlagged,
-        flagReason: flagReasons.join(' | ')
-      }
-    });
-
-    return {
-      message,
-      pointsEarned: finalPointsEarn,
-      streakStatus: {
-        currentStreak: updatedStats.currentStreak,
-        isTopStreakUpdated
-      }
-    };
-  });
+  } catch (err) {
+    if (uploadedKey) {
+      await s3Service.deleteByUrl(httpsUrlForKey(uploadedKey)).catch(() => {});
+    }
+    throw err;
+  }
 };
 
 const reviewActivitySubmission = async (

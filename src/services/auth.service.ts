@@ -126,53 +126,75 @@ const refreshAuth = async (refreshToken: string): Promise<AuthTokensResponse> =>
   }
 };
 
-const resetPassword = async (resetPasswordToken: string, newPassword: string): Promise<void> => {
-  try {
-    const resetPasswordTokenData = await tokenService.verifyToken(
-      resetPasswordToken,
-      TokenType.RESET_PASSWORD
-    );
-    const userId = resetPasswordTokenData.userId;
-    if (!userId) {
-      throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid token');
-    }
+const requestResetPasswordOtp = async (email: string): Promise<void> => {
+  const user = await userService.getUserByEmail(email, ['id', 'email', 'username']);
+  if (!user) return;
 
-    const user = await userService.getUserById(userId, ['id', 'password']);
-    if (!user) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
-    }
+  const otp = await tokenService.generateResetPasswordOtp(email);
+  await emailService.sendResetPasswordOtpEmail(user.email, user.username ?? user.email, otp);
+};
 
-    // Check if new password is same as current password
-    const isSameAsCurrent = await isPasswordMatch(newPassword, user.password as string);
-    if (isSameAsCurrent) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST, 
-        'New password cannot be the same as your current password'
-      );
-    }
-
-    // Check password history (prevent reusing old passwords)
-    const wasUsedBefore = await checkPasswordHistory(userId, newPassword);
-    if (wasUsedBefore) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        'This password was used recently. Please choose a different password'
-      );
-    }
-
-    const hashedPassword = await encryptPassword(newPassword);
-
-    // Save current password to history before updating
-    await savePasswordToHistory(userId, user.password as string);
-
-    await userService.updateUserById(user.id, { password: hashedPassword });
-    await prisma.token.deleteMany({ where: { userId: user.id, type: TokenType.RESET_PASSWORD } });
-
-    // Invalidate all existing sessions (access & refresh tokens) for security
-    await invalidateAllUserTokens(userId);
-  } catch (error) {
-    throw new ApiError(httpStatus.UNAUTHORIZED, 'Password reset failed');
+const resetPasswordWithOtp = async (
+  email: string,
+  otp: string,
+  newPassword: string
+): Promise<void> => {
+  // 1. Verify user exists
+  const user = await userService.getUserByEmail(email, ['id', 'email', 'password']);
+  if (!user) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid email or OTP');
   }
+
+  // 2. Verify OTP token
+  const tokenRow = await prisma.token.findFirst({
+    where: {
+      userId: user.id,
+      type: TokenType.RESET_PASSWORD,
+      token: otp,
+      blacklisted: false,
+      expires: { gt: new Date() }
+    }
+  });
+
+  if (!tokenRow) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid or expired OTP');
+  }
+
+  // 3. Check if new password is same as current password
+  const isSameAsCurrent = await isPasswordMatch(newPassword, user.password as string);
+  if (isSameAsCurrent) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'New password cannot be the same as your current password'
+    );
+  }
+
+  // 4. Check password history (prevent reusing old passwords)
+  const wasUsedBefore = await checkPasswordHistory(user.id, newPassword);
+  if (wasUsedBefore) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'This password was used recently. Please choose a different password'
+    );
+  }
+
+  // 5. Hash the new password
+  const hashedPassword = await encryptPassword(newPassword);
+
+  // 6. Save current password to history before updating
+  await savePasswordToHistory(user.id, user.password as string);
+
+  // 7. Update user password
+  await userService.updateUserById(user.id, { password: hashedPassword });
+
+  // 8. Delete all reset password tokens (OTP sekali pakai)
+  await prisma.token.deleteMany({
+    where: { userId: user.id, type: TokenType.RESET_PASSWORD }
+  });
+
+  // 9. Invalidate all existing sessions for security
+  await invalidateAllUserTokens(user.id);
+
 };
 
 const verifyEmail = async (email: string, otp: string): Promise<User> => {
@@ -230,7 +252,8 @@ export default {
   loginAdminWithEmailAndPassword,
   logout,
   refreshAuth,
-  resetPassword,
+  requestResetPasswordOtp,
+  resetPasswordWithOtp,
   verifyEmail,
   resendVerificationEmail
 };

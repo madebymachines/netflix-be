@@ -141,20 +141,23 @@ const generateAuthTokens = async (
 /**
  * Generate reset password token
  */
-const generateResetPasswordToken = async (email: string): Promise<string> => {
+const generateResetPasswordOtp = async (email: string): Promise<string> => {
   const user = await userService.getUserByEmail(email);
   if (!user) {
+    // sengaja lempar error supaya caller bisa “silent” kalau mau
     throw new ApiError(httpStatus.NOT_FOUND, 'No users found with this email');
   }
+
+  // opsional: bersihkan OTP reset yang masih aktif agar hanya 1 yang berlaku
+  await prisma.token.deleteMany({
+    where: { userId: user.id, type: TokenType.RESET_PASSWORD, expires: { gt: new Date() } }
+  });
+
   const expires = moment().add(config.jwt.resetPasswordExpirationMinutes, 'minutes');
-  const resetPasswordToken = generateToken(
-    user.id as number,
-    expires,
-    TokenType.RESET_PASSWORD,
-    'user'
-  );
-  await saveToken(resetPasswordToken, user.id as number, expires, TokenType.RESET_PASSWORD, 'user');
-  return resetPasswordToken;
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+  await saveToken(otp, user.id as number, expires, TokenType.RESET_PASSWORD, 'user');
+  return otp;
 };
 
 /**
@@ -173,6 +176,6 @@ export default {
   saveToken,
   verifyToken,
   generateAuthTokens,
-  generateResetPasswordToken,
+  generateResetPasswordOtp,
   generateVerifyEmailToken
 };
