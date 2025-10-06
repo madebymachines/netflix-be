@@ -4,6 +4,7 @@ import ApiError from '../utils/ApiError';
 import { roleRights } from '../config/roles';
 import { NextFunction, Request, Response } from 'express';
 import { Admin, User } from '@prisma/client';
+import prisma from '../client';
 
 const verifyCallback =
   (
@@ -20,6 +21,22 @@ const verifyCallback =
     if (err || info || !entity) {
       return reject(new ApiError(httpStatus.UNAUTHORIZED, 'Please authenticate'));
     }
+
+    const token = req.headers.authorization?.replace('Bearer ', '') || req.cookies.accessToken;
+    if (token) {
+      const isBlacklisted = await prisma.token.findFirst({
+        where: {
+          token,
+          blacklisted: true
+        }
+      });
+      
+      if (isBlacklisted) {
+        return reject(new ApiError(httpStatus.UNAUTHORIZED, 'Token has been invalidated'));
+      }
+    }
+
+    
     req.user = entity;
 
     if (requiredRights.length) {

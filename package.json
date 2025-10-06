@@ -23,7 +23,7 @@
     "docker:dev-db:start": "docker-compose -f docker-compose.only-db-dev.yml up -d",
     "docker:dev-db:stop": "docker-compose -f docker-compose.only-db-dev.yml down",
     "prepare": "husky install",
-    "build": "yarn prisma generate && yarn rimraf build && tsc -p tsconfig.json && cp -r src/assets build/src"
+    "build": "yarn prisma generate && yarn rimraf build && tsc -p tsconfig.json && copyfiles -u 1 \"src/assets/**/*\" build/src"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
@@ -68,6 +68,7 @@
     "@types/xss-filters": "^0.0.27",
     "@typescript-eslint/eslint-plugin": "^5.46.1",
     "@typescript-eslint/parser": "^5.46.1",
+    "copyfiles": "^2.4.1",
     "cross-env": "^7.0.3",
     "eslint": "^8.29.0",
     "eslint-config-prettier": "^8.5.0",

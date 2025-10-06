@@ -86,11 +86,25 @@ const login = catchAsync(async (req, res) => {
   res.send({ message: 'Login successful', user: userResponse, stats: statsResponse });
 });
 
+/**
+ * Logout OLD CODE
+ */
+// const logout = catchAsync(async (req, res) => {
+//   const { refreshToken } = req.cookies;
+//   if (refreshToken) {
+//     await authService.logout(refreshToken);
+//   }
+//   clearAuthCookies(res);
+//   res.status(httpStatus.OK).send({ message: 'Logged out successfully' });
+// });
+
 const logout = catchAsync(async (req, res) => {
-  const { refreshToken } = req.cookies;
+  const { refreshToken, accessToken } = req.cookies;
+  
   if (refreshToken) {
-    await authService.logout(refreshToken);
+    await authService.logout(refreshToken, accessToken);
   }
+  
   clearAuthCookies(res);
   res.status(httpStatus.OK).send({ message: 'Logged out successfully' });
 });

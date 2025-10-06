@@ -4,6 +4,7 @@ import prisma from '../client';
 import ApiError from '../utils/ApiError';
 import { encryptPassword } from '../utils/encryption';
 import emailService from './email.service';
+import { savePasswordToHistory } from '../utils/passwordUtils';
 import moment from 'moment';
 
 /**
@@ -42,10 +43,13 @@ const createUser = async (userBody: {
   if (await getUserByUsername(userBody.username)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Username already taken');
   }
+
+  const hashedPassword = await encryptPassword(userBody.password);
+
   const user = await prisma.user.create({
     data: {
       ...userBody,
-      password: await encryptPassword(userBody.password)
+      password: hashedPassword
     }
   });
 
@@ -55,6 +59,9 @@ const createUser = async (userBody: {
       userId: user.id
     }
   });
+
+  // Save initial password to history
+  await savePasswordToHistory(user.id, hashedPassword);
 
   return user;
 };

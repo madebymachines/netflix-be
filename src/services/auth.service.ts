@@ -8,6 +8,11 @@ import { encryptPassword, isPasswordMatch } from '../utils/encryption';
 import { AuthTokensResponse } from '../types/response';
 import emailService from './email.service';
 import { getAdminByEmail, getAdminById } from './admin.service';
+import { 
+  checkPasswordHistory, 
+  savePasswordToHistory,
+  invalidateAllUserTokens 
+} from '../utils/passwordUtils';
 
 /**
  * Login with username and password
@@ -57,7 +62,26 @@ const loginAdminWithEmailAndPassword = async (email: string, password: string): 
   return admin;
 };
 
-const logout = async (refreshToken: string): Promise<void> => {
+/**
+ * Logout OLD CODE
+ */
+// const logout = async (refreshToken: string): Promise<void> => {
+//   const refreshTokenData = await prisma.token.findFirst({
+//     where: {
+//       token: refreshToken,
+//       type: TokenType.REFRESH,
+//       blacklisted: false
+//     }
+//   });
+//   if (!refreshTokenData) {
+//     throw new ApiError(httpStatus.NOT_FOUND, 'Not found');
+//   }
+//   await prisma.token.delete({ where: { id: refreshTokenData.id } });
+// };
+
+
+const logout = async (refreshToken: string, accessToken?: string): Promise<void> => {
+  // Hapus refresh token
   const refreshTokenData = await prisma.token.findFirst({
     where: {
       token: refreshToken,
@@ -65,11 +89,18 @@ const logout = async (refreshToken: string): Promise<void> => {
       blacklisted: false
     }
   });
+  
   if (!refreshTokenData) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Not found');
   }
+  
   await prisma.token.delete({ where: { id: refreshTokenData.id } });
+
+  if (accessToken) {
+    await tokenService.blacklistToken(accessToken);
+  }
 };
+
 
 const refreshAuth = async (refreshToken: string): Promise<AuthTokensResponse> => {
   try {
@@ -105,13 +136,40 @@ const resetPassword = async (resetPasswordToken: string, newPassword: string): P
     if (!userId) {
       throw new ApiError(httpStatus.UNAUTHORIZED, 'Invalid token');
     }
-    const user = await userService.getUserById(userId);
+
+    const user = await userService.getUserById(userId, ['id', 'password']);
     if (!user) {
-      throw new Error();
+      throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
     }
+
+    // Check if new password is same as current password
+    const isSameAsCurrent = await isPasswordMatch(newPassword, user.password as string);
+    if (isSameAsCurrent) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST, 
+        'New password cannot be the same as your current password'
+      );
+    }
+
+    // Check password history (prevent reusing old passwords)
+    const wasUsedBefore = await checkPasswordHistory(userId, newPassword);
+    if (wasUsedBefore) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        'This password was used recently. Please choose a different password'
+      );
+    }
+
     const hashedPassword = await encryptPassword(newPassword);
+
+    // Save current password to history before updating
+    await savePasswordToHistory(userId, user.password as string);
+
     await userService.updateUserById(user.id, { password: hashedPassword });
     await prisma.token.deleteMany({ where: { userId: user.id, type: TokenType.RESET_PASSWORD } });
+
+    // Invalidate all existing sessions (access & refresh tokens) for security
+    await invalidateAllUserTokens(userId);
   } catch (error) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Password reset failed');
   }

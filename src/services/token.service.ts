@@ -13,6 +13,42 @@ type Entity = { id: number };
 type EntityType = 'user' | 'admin';
 
 /**
+ * Blacklist a token (untuk logout)
+ */
+const blacklistToken = async (token: string): Promise<void> => {
+  try {
+    const payload = jwt.verify(token, config.jwt.secret) as jwt.JwtPayload;
+    
+    // Validasi payload.sub ada dan valid
+    if (!payload.sub || typeof payload.sub !== 'number' && typeof payload.sub !== 'string') {
+      throw new Error('Invalid token payload');
+    }
+    
+    const entityId = Number(payload.sub);
+    const entityType = payload.entityType as EntityType;
+    
+    if (!entityType || (entityType !== 'user' && entityType !== 'admin')) {
+      throw new Error('Invalid entity type in token');
+    }
+    
+    const expires = moment.unix(payload.exp || 0);
+
+    await prisma.token.create({
+      data: {
+        token,
+        expires: expires.toDate(),
+        type: TokenType.ACCESS,
+        blacklisted: true,
+        ...(entityType === 'admin' ? { adminId: entityId } : { userId: entityId })
+      }
+    });
+  } catch (error) {
+    // Token invalid atau expired, ignore
+    console.error('Failed to blacklist token:', error);
+  }
+};
+
+/**
  * Generate token
  */
 const generateToken = (
@@ -132,6 +168,7 @@ const generateVerifyEmailToken = async (user: { id: number }): Promise<string> =
 };
 
 export default {
+  blacklistToken,
   generateToken,
   saveToken,
   verifyToken,
