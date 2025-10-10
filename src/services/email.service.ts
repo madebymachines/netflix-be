@@ -204,7 +204,7 @@ const sendVerificationEmail = async (to: string, token: string) => {
  * @returns {Promise}
  */
 const sendPurchaseApprovalEmail = async (to: string, name: string, voucherBuffer?: Buffer) => {
-  const subject = 'Your Purchase Verification is Approved!';
+  const subject = 'Congrats! You’ve Got 3 Days Gym Pass: Your Purchase Has Been Verified';
   const preheaderText = `Hi ${name}, great news! Your purchase verification has been successfully approved.`;
 
   let voucherBlock = '';
