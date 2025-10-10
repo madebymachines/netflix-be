@@ -8,10 +8,10 @@ import { encryptPassword, isPasswordMatch } from '../utils/encryption';
 import { AuthTokensResponse } from '../types/response';
 import emailService from './email.service';
 import { getAdminByEmail, getAdminById } from './admin.service';
-import { 
-  checkPasswordHistory, 
+import {
+  checkPasswordHistory,
   savePasswordToHistory,
-  invalidateAllUserTokens 
+  invalidateAllUserTokens
 } from '../utils/passwordUtils';
 
 /**
@@ -79,7 +79,6 @@ const loginAdminWithEmailAndPassword = async (email: string, password: string): 
 //   await prisma.token.delete({ where: { id: refreshTokenData.id } });
 // };
 
-
 const logout = async (refreshToken: string, accessToken?: string): Promise<void> => {
   // Hapus refresh token
   const refreshTokenData = await prisma.token.findFirst({
@@ -89,18 +88,17 @@ const logout = async (refreshToken: string, accessToken?: string): Promise<void>
       blacklisted: false
     }
   });
-  
+
   if (!refreshTokenData) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Not found');
   }
-  
+
   await prisma.token.delete({ where: { id: refreshTokenData.id } });
 
   if (accessToken) {
     await tokenService.blacklistToken(accessToken);
   }
 };
-
 
 const refreshAuth = async (refreshToken: string): Promise<AuthTokensResponse> => {
   try {
@@ -194,7 +192,6 @@ const resetPasswordWithOtp = async (
 
   // 9. Invalidate all existing sessions for security
   await invalidateAllUserTokens(user.id);
-
 };
 
 const verifyEmail = async (email: string, otp: string): Promise<User> => {

@@ -6,6 +6,7 @@ import docsRoute from './docs.route';
 import activityRoute from './activity.route';
 import leaderboardRoute from './leaderboard.route';
 import config from '../../config/config';
+import testRoute from './test.route'; // <-- IMPORT BARU
 
 const router = express.Router();
 
@@ -37,7 +38,13 @@ const devRoutes = [
   {
     path: '/docs',
     route: docsRoute
+  },
+  // --- PERUBAHAN DIMULAI DI SINI ---
+  {
+    path: '/test',
+    route: testRoute
   }
+  // --- PERUBAHAN SELESAI ---
 ];
 
 defaultRoutes.forEach((route) => {

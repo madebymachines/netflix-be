@@ -100,11 +100,11 @@ const login = catchAsync(async (req, res) => {
 
 const logout = catchAsync(async (req, res) => {
   const { refreshToken, accessToken } = req.cookies;
-  
+
   if (refreshToken) {
     await authService.logout(refreshToken, accessToken);
   }
-  
+
   clearAuthCookies(res);
   res.status(httpStatus.OK).send({ message: 'Logged out successfully' });
 });

@@ -12,7 +12,7 @@ const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 export async function sanitizeImageOrThrow(buf: Buffer) {
   // Untuk file-type v16, gunakan fromBuffer
   const sig = await fileType.fromBuffer(buf);
-  
+
   if (!sig || !ALLOWED_MIME.has(sig.mime)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Image type not supported.');
   }
