@@ -210,7 +210,6 @@ const saveActivity = async (
   } catch (err) {
     if (uploadedKey) {
       await s3Service.deleteByUrl(httpsUrlForKey(uploadedKey)).catch((deleteError) => {
-        
         logger.error(
           `Failed to delete orphaned S3 object [${uploadedKey}] after an error:`,
           deleteError
@@ -354,9 +353,37 @@ const queryActivitySubmissions = async (
     prisma.activityHistory.count({ where })
   ]);
 
+  // --- PERBAIKAN DIMULAI DI SINI ---
+  // Ubah URL S3 menjadi pre-signed URL yang dapat diakses oleh frontend
+  const signedSubmissions = await Promise.all(
+    submissions.map(async (submission) => {
+      let signedUrl: string | null | undefined = submission.submissionImageUrl;
+
+      if (signedUrl && signedUrl.startsWith('s3://')) {
+        try {
+          const s3Prefix = `s3://${config.aws.s3.bucketName}/`;
+          const key = signedUrl.substring(s3Prefix.length);
+          if (key) {
+            // Buat pre-signed URL yang valid untuk 15 menit
+            signedUrl = await s3Service.getPresignedUrl(key, 900);
+          }
+        } catch (e) {
+          logger.error(`Failed to create presigned URL for S3 key: ${signedUrl}`, e);
+          signedUrl = null; // Jika gagal, kirim null agar frontend bisa menanganinya
+        }
+      }
+
+      return {
+        ...submission,
+        submissionImageUrl: signedUrl
+      };
+    })
+  );
+  // --- PERBAIKAN SELESAI ---
+
   const totalPages = fetchAll ? 1 : Math.ceil(totalItems / limit);
   return {
-    data: submissions,
+    data: signedSubmissions, // Kirim data yang sudah diubah
     pagination: {
       currentPage: page,
       limit: fetchAll ? totalItems : limit,
