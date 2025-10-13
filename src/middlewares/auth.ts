@@ -30,13 +30,12 @@ const verifyCallback =
           blacklisted: true
         }
       });
-      
+
       if (isBlacklisted) {
         return reject(new ApiError(httpStatus.UNAUTHORIZED, 'Token has been invalidated'));
       }
     }
 
-    
     req.user = entity;
 
     if (requiredRights.length) {

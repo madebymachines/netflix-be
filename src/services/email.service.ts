@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import config from '../config/config';
 import logger from '../config/logger';
 import path from 'path';
+import fs from 'fs/promises';
 
 const transport = nodemailer.createTransport(config.email.smtp);
 /* istanbul ignore next */
@@ -84,6 +85,17 @@ const createHtmlTemplate = (content: string, preheaderText: string) => `
             height: 0;
             width: 0;
         }
+        .voucher-image {
+            max-width: 100%;
+            height: auto;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        .tnc-image {
+            max-width: 100%;
+            height: auto;
+            margin-top: 8px; /* Sedikit spasi antara voucher dan T&C */
+        }
     </style>
 </head>
 <body style="background-color: #111111; background-image: url('cid:background'); background-size: cover; background-position: center; background-repeat: no-repeat;">
@@ -104,27 +116,36 @@ const createHtmlTemplate = (content: string, preheaderText: string) => `
  * @param {string} to
  * @param {string} subject
  * @param {string} html
+ * @param {Array<object>} extraAttachments - Lampiran tambahan
  * @returns {Promise}
  */
-const sendEmail = async (to: string, subject: string, html: string) => {
+const sendEmail = async (
+  to: string,
+  subject: string,
+  html: string,
+  extraAttachments: any[] = []
+) => {
+  const defaultAttachments = [
+    {
+      filename: 'logo.png',
+      path: path.join(__dirname, '../assets/logo.png'),
+      cid: 'logo'
+    },
+    {
+      filename: 'bg-email.png',
+      path: path.join(__dirname, '../assets/bg-email.png'),
+      cid: 'background'
+    }
+  ];
+
   const msg = {
     from: `"${config.email.fromName || 'Netflix Physical Asia'}" <${config.email.from}>`,
     to,
     subject,
     html,
-    attachments: [
-      {
-        filename: 'logo.png',
-        path: path.join(__dirname, '../assets/logo.png'),
-        cid: 'logo'
-      },
-      {
-        filename: 'bg-email.png',
-        path: path.join(__dirname, '../assets/bg-email.png'),
-        cid: 'background'
-      }
-    ]
+    attachments: [...defaultAttachments, ...extraAttachments]
   };
+
   if (config.email.mock) {
     logger.info(`MOCK EMAIL: To: ${to}, Subject: ${subject}`);
     return;
@@ -179,21 +200,54 @@ const sendVerificationEmail = async (to: string, token: string) => {
  * Send purchase approval email
  * @param {string} to
  * @param {string} name
+ * @param {Buffer} [voucherBuffer] - Buffer gambar voucher opsional
  * @returns {Promise}
  */
-const sendPurchaseApprovalEmail = async (to: string, name: string) => {
-  const subject = 'Your Purchase Verification is Approved!';
+const sendPurchaseApprovalEmail = async (to: string, name: string, voucherBuffer?: Buffer) => {
+  const subject = 'Congrats! You’ve Got 3 Days Gym Pass: Your Purchase Has Been Verified';
   const preheaderText = `Hi ${name}, great news! Your purchase verification has been successfully approved.`;
+
+  let voucherBlock = '';
+  const extraAttachments = [];
+
+  if (voucherBuffer) {
+    // Menyiapkan lampiran untuk voucher utama
+    extraAttachments.push({
+      filename: 'voucher.png',
+      content: voucherBuffer,
+      cid: 'voucherImage'
+    });
+
+    // Menyiapkan lampiran untuk gambar T&C
+    try {
+      const tncBuffer = await fs.readFile(path.join(__dirname, '../assets/voucher-tnc.png'));
+      extraAttachments.push({
+        filename: 'voucher-tnc.png',
+        content: tncBuffer,
+        cid: 'voucherTncImage'
+      });
+      // Membangun blok HTML untuk kedua gambar
+      voucherBlock = `
+        <img src="cid:voucherImage" alt="Your Gym Pass Voucher" class="voucher-image">
+        <img src="cid:voucherTncImage" alt="Voucher Terms and Conditions" class="tnc-image">
+      `;
+    } catch (error) {
+      logger.error('Could not read voucher-tnc.png asset. T&C image will be skipped.', error);
+      // Fallback jika file T&C tidak ditemukan, hanya tampilkan voucher utama
+      voucherBlock = `<img src="cid:voucherImage" alt="Your Gym Pass Voucher" class="voucher-image">`;
+    }
+  }
 
   const content = `
     <p>Hi ${name},</p>
-    <p>Great news! We have reviewed the receipt/proof of purchase you submitted, and we're happy to inform you that it has been **approved**.</p>
+    <p>Great news! We have reviewed the receipt/proof of purchase you submitted, and we're happy to inform you that it has been <strong>approved</strong>.</p>
     <p>You can now fully participate in all activities and start earning points.</p>
     <p>Thank you for your participation!</p>
+    ${voucherBlock}
   `;
 
   const html = createHtmlTemplate(content, preheaderText);
-  await sendEmail(to, subject, html);
+  await sendEmail(to, subject, html, extraAttachments);
 };
 
 /**

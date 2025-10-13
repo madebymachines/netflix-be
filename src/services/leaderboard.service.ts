@@ -1,5 +1,5 @@
 import prisma from '../client';
-import { Prisma } from '@prisma/client';
+import { Prisma, PurchaseStatus } from '@prisma/client';
 import moment from 'moment';
 
 type Timespan = 'alltime' | 'streak' | 'weekly' | 'monthly';
@@ -28,7 +28,10 @@ const getPublicLeaderboard = async (options: {
     const endOfPeriod =
       timespan === 'weekly' ? moment().endOf('isoWeek').toDate() : moment().endOf('month').toDate();
 
-    const userFilter: Prisma.UserWhereInput = { isBanned: false };
+    const userFilter: Prisma.UserWhereInput = {
+      isBanned: false,
+      purchaseStatus: PurchaseStatus.APPROVED // <-- PERUBAHAN
+    };
     if (region) {
       userFilter.country = region;
     }
@@ -118,7 +121,10 @@ const getPublicLeaderboard = async (options: {
       break;
   }
 
-  const userStatsFilter: Prisma.UserWhereInput = { isBanned: false };
+  const userStatsFilter: Prisma.UserWhereInput = {
+    isBanned: false,
+    purchaseStatus: PurchaseStatus.APPROVED // <-- PERUBAHAN
+  };
   if (region) {
     userStatsFilter.country = region;
   }
@@ -227,7 +233,8 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
     country: null
   };
 
-  if (!user || user.isBanned) {
+  // <-- PERUBAHAN: Tambahkan cek purchaseStatus
+  if (!user || user.isBanned || user.purchaseStatus !== PurchaseStatus.APPROVED) {
     if (timespan === 'streak') return { ...baseResponseNoUser, streak: 0 };
     return { ...baseResponseNoUser, points: 0, totalReps: 0 };
   }
@@ -282,7 +289,7 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
       const allScores = await prisma.activityHistory.groupBy({
         by: ['userId'],
         where: {
-          user: { isBanned: false },
+          user: { isBanned: false, purchaseStatus: PurchaseStatus.APPROVED }, // <-- PERUBAHAN
           status: { in: ['APPROVED', 'PENDING'] },
           createdAt: { gte: startOfPeriod, lte: endOfPeriod }
         },
@@ -314,7 +321,7 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
       rank =
         (await prisma.userStats.count({
           where: {
-            user: { isBanned: false },
+            user: { isBanned: false, purchaseStatus: PurchaseStatus.APPROVED }, // <-- PERUBAHAN
             OR: [
               { topStreak: { gt: user.stats.topStreak } },
               {
@@ -331,7 +338,7 @@ const getUserRank = async (userId: number, options: { timespan?: Timespan; regio
       rank =
         (await prisma.userStats.count({
           where: {
-            user: { isBanned: false },
+            user: { isBanned: false, purchaseStatus: PurchaseStatus.APPROVED }, // <-- PERUBAHAN
             OR: [
               { totalPoints: { gt: user.stats.totalPoints } },
               {

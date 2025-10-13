@@ -6,6 +6,7 @@ import ApiError from '../utils/ApiError';
 import httpStatus from 'http-status';
 import { sanitizeImageOrThrow } from '../utils/imageGuard';
 import config from '../config/config';
+import logger from '../config/logger'; // <-- IMPORT BARU
 
 /**
  * Menyimpan aktivitas baru, memperbarui statistik pengguna, dan menerapkan pemeriksaan anti-cheat.
@@ -208,7 +209,13 @@ const saveActivity = async (
     });
   } catch (err) {
     if (uploadedKey) {
-      await s3Service.deleteByUrl(httpsUrlForKey(uploadedKey)).catch(() => {});
+      await s3Service.deleteByUrl(httpsUrlForKey(uploadedKey)).catch((deleteError) => {
+        
+        logger.error(
+          `Failed to delete orphaned S3 object [${uploadedKey}] after an error:`,
+          deleteError
+        );
+      });
     }
     throw err;
   }

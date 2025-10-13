@@ -6,6 +6,10 @@ import { encryptPassword } from '../utils/encryption';
 import emailService from './email.service';
 import { savePasswordToHistory } from '../utils/passwordUtils';
 import moment from 'moment';
+import { generateVoucher } from './voucher.service';
+import s3Service from './s3.service';
+import config from '../config/config';
+import logger from '../config/logger';
 
 /**
  * Get user by username
@@ -287,10 +291,27 @@ const reviewPurchaseVerification = async (
       rejectionReason
     );
   } else if (status === PurchaseStatus.APPROVED) {
-    await emailService.sendPurchaseApprovalEmail(
-      verification.user.email,
-      verification.user.username
-    );
+    try {
+      // 1. Generate gambar voucher
+      const voucherBuffer = await generateVoucher(verification.user.username);
+
+      // 2. Kirim email approval dengan buffer voucher untuk disematkan
+      await emailService.sendPurchaseApprovalEmail(
+        verification.user.email,
+        verification.user.username,
+        voucherBuffer
+      );
+    } catch (error) {
+      logger.error(
+        `Failed to generate or send voucher for user ${verification.user.email}:`,
+        error
+      );
+      // Fallback: Kirim email approval standar tanpa voucher jika terjadi error
+      await emailService.sendPurchaseApprovalEmail(
+        verification.user.email,
+        verification.user.username
+      );
+    }
   }
 };
 
@@ -370,10 +391,38 @@ const queryPurchaseVerifications = async (
     prisma.purchaseVerification.count({ where })
   ]);
 
+  // --- PERBAIKAN DIMULAI DI SINI ---
+  // Ubah semua URL gambar menjadi presigned URL yang valid
+  const signedVerifications = await Promise.all(
+    verifications.map(async (verification) => {
+      let signedUrl: string | null = verification.receiptImageUrl;
+
+      if (signedUrl && signedUrl.startsWith('s3://')) {
+        try {
+          const s3Prefix = `s3://${config.aws.s3.bucketName}/`;
+          const key = signedUrl.substring(s3Prefix.length);
+          if (key) {
+            // Buat presigned URL yang valid untuk 15 menit
+            signedUrl = await s3Service.getPresignedUrl(key, 900);
+          }
+        } catch (e) {
+          logger.error(`Failed to create presigned URL for S3 key: ${signedUrl}`, e);
+          signedUrl = null; // Gagal membuat URL, kirim null agar FE bisa handle
+        }
+      }
+
+      return {
+        ...verification,
+        receiptImageUrl: signedUrl
+      };
+    })
+  );
+  // --- PERBAIKAN SELESAI ---
+
   const totalPages = fetchAll ? 1 : Math.ceil(totalItems / limit);
 
   return {
-    data: verifications,
+    data: signedVerifications, // Kirim data yang URL-nya sudah diubah
     pagination: {
       currentPage: page,
       limit: fetchAll ? totalItems : limit,

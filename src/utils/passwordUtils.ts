@@ -57,9 +57,7 @@ export const savePasswordToHistory = async (
   });
 
   if (allHistory.length > PASSWORD_HISTORY_LIMIT) {
-    const idsToDelete = allHistory
-      .slice(PASSWORD_HISTORY_LIMIT)
-      .map(h => h.id);
+    const idsToDelete = allHistory.slice(PASSWORD_HISTORY_LIMIT).map((h) => h.id);
 
     await prisma.passwordHistory.deleteMany({
       where: {
