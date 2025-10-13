@@ -37,8 +37,8 @@ export const password: Joi.CustomValidator<string> = (value, helpers) => {
     });
   }
 
-  // Check for at least one special character
-  if (!value.match(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/)) {
+  // Check for at least one special character - FIXED REGEX
+  if (!value.match(/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/)) {
     return helpers.error('password.specialChar', { 
       message: 'Password must contain at least one special character (!@#$%^&*, etc.)' 
     });
@@ -59,12 +59,12 @@ export const password: Joi.CustomValidator<string> = (value, helpers) => {
     });
   }
 
-  // Check for sequential characters (123, abc, etc.)
-  if (/(?:012|123|234|345|456|567|678|789|890|abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz)/i.test(value)) {
-    return helpers.error('password.sequential', { 
-      message: 'Password should not contain sequential characters' 
-    });
-  }
+  // // Check for sequential characters (123, abc, etc.)
+  // if (/(?:012|123|234|345|456|567|678|789|890|abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz)/i.test(value)) {
+  //   return helpers.error('password.sequential', { 
+  //     message: 'Password should not contain sequential characters' 
+  //   });
+  // }
 
   // Check for repeated characters (aaa, 111, etc.)
   if (/(.)\1{2,}/.test(value)) {
