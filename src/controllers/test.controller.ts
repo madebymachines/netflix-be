@@ -23,7 +23,7 @@ const generateTestVoucher = catchAsync(async (req, res) => {
   const filePath = path.join(tempDir, fileName);
 
   // Tulis buffer gambar ke dalam file
-  await fs.writeFile(filePath, voucherBuffer);
+  await fs.writeFile(filePath, voucherBuffer as Uint8Array);
 
   // Kirim respons sukses beserta path ke file yang baru dibuat
   res.status(httpStatus.OK).send({
