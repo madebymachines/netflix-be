@@ -17,19 +17,37 @@ if (config.env !== 'test') {
     );
 }
 
-const createHtmlTemplate = (content: string, preheaderText: string) => `
+const createHtmlTemplate = (
+  content: string,
+  preheaderText: string,
+  logoUrl: string,
+  backgroundUrl: string
+) => `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="x-apple-disable-message-reformatting">
     <title>Notification</title>
+    <!--[if mso]>
+    <noscript>
+    <xml>
+        <o:OfficeDocumentSettings>
+        <o:AllowPNG/>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+        </o:OfficeDocumentSettings>
+    </xml>
+    </noscript>
+    <![endif]-->
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #111111;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+        html, body {
+            margin: 0 auto !important;
+            padding: 0 !important;
+            height: 100% !important;
+            width: 100% !important;
+            background: #000000;
         }
         .container {
             max-width: 600px;
@@ -48,10 +66,13 @@ const createHtmlTemplate = (content: string, preheaderText: string) => `
             padding: 30px;
             text-align: left;
             line-height: 1.6;
+            background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background for better readability */
         }
         p {
             margin: 0 0 1em 0;
             font-size: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            color: #ffffff;
         }
         .otp-box {
             border: 1px solid #444444;
@@ -94,19 +115,46 @@ const createHtmlTemplate = (content: string, preheaderText: string) => `
         .tnc-image {
             max-width: 100%;
             height: auto;
-            margin-top: 8px; /* Sedikit spasi antara voucher dan T&C */
+            margin-top: 8px;
         }
     </style>
 </head>
-<body style="background-color: #111111; background-image: url('cid:background'); background-size: cover; background-position: center; background-repeat: no-repeat;">
-    <!-- Preheader Text -->
+<body width="100%" style="margin: 0; padding: 0 !important; mso-line-height-rule: exactly; background-color: #000000;">
     <span class="preheader">${preheaderText}</span>
-    <div class="container">
-        <img src="cid:logo" alt="Logo" class="logo" style="width: 200px;">
-        <div class="content-box">
-            ${content}
-        </div>
-    </div>
+    
+    <!--[if gte mso 9]>
+    <v:background xmlns:v="urn:schemas-microsoft-com:vml" fill="t">
+        <v:fill type="tile" src="${backgroundUrl}" color="#000000"/>
+    </v:background>
+    <![endif]-->
+
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+        <tr>
+            <td
+                valign="top"
+                style="background: #000000 url('${backgroundUrl}'); background-position: center center !important; background-size: cover !important;"
+            >
+                <!--[if gte mso 9]>
+                <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="600" align="center">
+                <tr>
+                <td>
+                <![endif]-->
+
+                <div class="container">
+                    <img src="${logoUrl}" alt="Logo" class="logo" style="width: 200px;">
+                    <div class="content-box">
+                        ${content}
+                    </div>
+                </div>
+
+                <!--[if gte mso 9]>
+                </td>
+                </tr>
+                </table>
+                <![endif]-->
+            </td>
+        </tr>
+    </table>
 </body>
 </html>
 `;
@@ -115,35 +163,31 @@ const createHtmlTemplate = (content: string, preheaderText: string) => `
  * Send an email
  * @param {string} to
  * @param {string} subject
- * @param {string} html
- * @param {Array<object>} extraAttachments - Lampiran tambahan
+ * @param {string} htmlContent - The main content of the email, not the full template
+ * @param {string} preheaderText
+ * @param {Array<object>} attachments - Lampiran file
  * @returns {Promise}
  */
 const sendEmail = async (
   to: string,
   subject: string,
-  html: string,
-  extraAttachments: any[] = []
+  htmlContent: string,
+  preheaderText: string,
+  attachments: any[] = []
 ) => {
-  const defaultAttachments = [
-    {
-      filename: 'logo.png',
-      path: path.join(__dirname, '../assets/logo.png'),
-      cid: 'logo'
-    },
-    {
-      filename: 'bg-email.png',
-      path: path.join(__dirname, '../assets/bg-email.png'),
-      cid: 'background'
-    }
-  ];
+  const LOGO_URL =
+    'https://res.cloudinary.com/dpemrylwq/image/upload/v1760606407/netflix-100/logo_zzes2x.png';
+  const BACKGROUND_URL =
+    'https://res.cloudinary.com/dpemrylwq/image/upload/v1760606407/netflix-100/bg-email_cuwcza.png';
+
+  const fullHtml = createHtmlTemplate(htmlContent, preheaderText, LOGO_URL, BACKGROUND_URL);
 
   const msg = {
     from: `"${config.email.fromName || 'Netflix Physical Asia'}" <${config.email.from}>`,
     to,
     subject,
-    html,
-    attachments: [...defaultAttachments, ...extraAttachments]
+    html: fullHtml,
+    attachments: attachments
   };
 
   if (config.email.mock) {
@@ -167,11 +211,10 @@ const sendResetPasswordOtpEmail = async (to: string, name: string, otp: string) 
     <p>Hi ${name},</p>
     <p>Please use the following One-Time Password (OTP) to reset your password. Do not share this code with anyone.</p>
     <div class="otp-box">${otp.split('').join(' ')}</div>
-    <p>This code is valid for the next ${config.jwt.verifyEmailExpirationMinutes} minutes.</p>
+    <p>This code is valid for the next 10 minutes.</p>
     <p>If you did not request this, you can ignore this email.</p>
   `;
-  const html = createHtmlTemplate(content, preheaderText);
-  await sendEmail(to, subject, html);
+  await sendEmail(to, subject, content, preheaderText);
 };
 
 /**
@@ -192,8 +235,7 @@ const sendVerificationEmail = async (to: string, token: string) => {
     <p>Thank you.</p>
   `;
 
-  const html = createHtmlTemplate(content, preheaderText);
-  await sendEmail(to, subject, html);
+  await sendEmail(to, subject, content, preheaderText);
 };
 
 /**
@@ -208,32 +250,28 @@ const sendPurchaseApprovalEmail = async (to: string, name: string, voucherBuffer
   const preheaderText = `Hi ${name}, great news! Your purchase verification has been successfully approved.`;
 
   let voucherBlock = '';
-  const extraAttachments = [];
+  const cidAttachments = [];
 
   if (voucherBuffer) {
-    // Menyiapkan lampiran untuk voucher utama
-    extraAttachments.push({
+    cidAttachments.push({
       filename: 'voucher.png',
       content: voucherBuffer,
       cid: 'voucherImage'
     });
 
-    // Menyiapkan lampiran untuk gambar T&C
     try {
       const tncBuffer = await fs.readFile(path.join(__dirname, '../assets/voucher-tnc.png'));
-      extraAttachments.push({
+      cidAttachments.push({
         filename: 'voucher-tnc.png',
         content: tncBuffer,
         cid: 'voucherTncImage'
       });
-      // Membangun blok HTML untuk kedua gambar
       voucherBlock = `
         <img src="cid:voucherImage" alt="Your Gym Pass Voucher" class="voucher-image">
         <img src="cid:voucherTncImage" alt="Voucher Terms and Conditions" class="tnc-image">
       `;
     } catch (error) {
       logger.error('Could not read voucher-tnc.png asset. T&C image will be skipped.', error);
-      // Fallback jika file T&C tidak ditemukan, hanya tampilkan voucher utama
       voucherBlock = `<img src="cid:voucherImage" alt="Your Gym Pass Voucher" class="voucher-image">`;
     }
   }
@@ -246,8 +284,7 @@ const sendPurchaseApprovalEmail = async (to: string, name: string, voucherBuffer
     ${voucherBlock}
   `;
 
-  const html = createHtmlTemplate(content, preheaderText);
-  await sendEmail(to, subject, html, extraAttachments);
+  await sendEmail(to, subject, content, preheaderText, cidAttachments);
 };
 
 /**
@@ -270,9 +307,7 @@ const sendPurchaseRejectionEmail = async (to: string, name: string, reason?: str
     <p>We have reviewed the receipt/proof of purchase for the 100 Plus Drink you previously submitted. ${reasonMessage}</p>
     <p>Thank you.</p>
   `;
-
-  const html = createHtmlTemplate(content, preheaderText);
-  await sendEmail(to, subject, html);
+  await sendEmail(to, subject, content, preheaderText);
 };
 
 /**
@@ -296,9 +331,7 @@ const sendExportReadyEmail = async (to: string, name: string, downloadUrl: strin
     <p><a href="${downloadUrl}" class="link">${downloadUrl}</a></p>
     <p>Thank you.</p>
   `;
-
-  const html = createHtmlTemplate(content, preheaderText);
-  await sendEmail(to, subject, html);
+  await sendEmail(to, subject, content, preheaderText);
 };
 
 export default {
