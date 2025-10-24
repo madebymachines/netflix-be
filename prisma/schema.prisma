@@ -121,6 +121,11 @@ model ExportJob {
   completedAt        DateTime?
 }
 
+model Setting {
+  key   String @id
+  value String
+}
+
 enum ExportType {
   PARTICIPANTS
   LEADERBOARD

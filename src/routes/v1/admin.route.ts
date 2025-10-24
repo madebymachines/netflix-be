@@ -116,4 +116,14 @@ router
     adminController.rejectActivitySubmission
   );
 
+// Registration Settings
+router
+  .route('/settings/registration')
+  .get(auth('manageUsers'), adminController.getRegistrationSettings)
+  .put(
+    auth('manageUsers'),
+    validate(adminValidation.updateRegistrationSettings),
+    adminController.updateRegistrationSettings
+  );
+
 export default router;

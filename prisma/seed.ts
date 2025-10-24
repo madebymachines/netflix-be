@@ -35,7 +35,26 @@ async function main() {
     }
   });
 
+  await prisma.setting.upsert({
+    where: { key: 'isRegistrationOpen' },
+    update: {},
+    create: {
+      key: 'isRegistrationOpen',
+      value: 'true' // 'true' or 'false' as a string
+    }
+  });
+
+  await prisma.setting.upsert({
+    where: { key: 'registrationLimit' },
+    update: {},
+    create: {
+      key: 'registrationLimit',
+      value: '0' // 0 means no limit
+    }
+  });
+
   console.log({ admin, superAdmin });
+  console.log('Default settings seeded.');
   console.log('Seeding finished.');
 }
 

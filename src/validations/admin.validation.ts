@@ -18,7 +18,15 @@ const createAdmin = {
   })
 };
 
+const updateRegistrationSettings = {
+  body: Joi.object().keys({
+    isRegistrationOpen: Joi.boolean().required(),
+    registrationLimit: Joi.number().integer().min(0).required()
+  })
+};
+
 export default {
   adminLogin,
-  createAdmin
+  createAdmin,
+  updateRegistrationSettings
 };

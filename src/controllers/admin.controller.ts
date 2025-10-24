@@ -5,7 +5,8 @@ import {
   userService,
   tokenService,
   activityService,
-  exportService
+  exportService,
+  settingService
 } from '../services';
 import { Response } from 'express';
 import { AuthTokensResponse } from '../types/response';
@@ -200,6 +201,22 @@ const requestExport = catchAsync(async (req, res) => {
   });
 });
 
+const getRegistrationSettings = catchAsync(async (req, res) => {
+  const settings = await settingService.getRegistrationSettings();
+  res.status(httpStatus.OK).send(settings);
+});
+
+const updateRegistrationSettings = catchAsync(async (req, res) => {
+  const { isRegistrationOpen, registrationLimit } = req.body;
+  const settings = await settingService.updateRegistrationSettings(
+    isRegistrationOpen,
+    registrationLimit
+  );
+  res
+    .status(httpStatus.OK)
+    .send({ message: 'Registration settings updated successfully', settings });
+});
+
 export default {
   adminLogin,
   getMe,
@@ -222,5 +239,7 @@ export default {
   approveActivitySubmission,
   rejectActivitySubmission,
   requestExport,
-  getUserActivityHistory
+  getUserActivityHistory,
+  getRegistrationSettings,
+  updateRegistrationSettings
 };

@@ -10,6 +10,7 @@ import { generateVoucher } from './voucher.service';
 import s3Service from './s3.service';
 import config from '../config/config';
 import logger from '../config/logger';
+import settingService from './setting.service';
 
 /**
  * Get user by username
@@ -41,6 +42,19 @@ const createUser = async (userBody: {
   username: string;
   country: string;
 }): Promise<User> => {
+  const settings = await settingService.getRegistrationSettings();
+
+  if (!settings.isRegistrationOpen) {
+    throw new ApiError(httpStatus.FORBIDDEN, 'Registration is currently closed.');
+  }
+
+  if (settings.registrationLimit > 0) {
+    const userCount = await prisma.user.count();
+    if (userCount >= settings.registrationLimit) {
+      throw new ApiError(httpStatus.FORBIDDEN, 'Registration limit has been reached.');
+    }
+  }
+
   if (await getUserByEmail(userBody.email)) {
     throw new ApiError(httpStatus.BAD_REQUEST, 'Email already taken');
   }
