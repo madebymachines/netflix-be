@@ -5,6 +5,7 @@ import prisma from './client';
 import config from './config/config';
 import logger from './config/logger';
 import { socketService } from './services';
+import { startSchedulers } from './scheduler';
 
 let server: HttpServer;
 prisma.$connect().then(() => {
@@ -27,6 +28,7 @@ prisma.$connect().then(() => {
 
   server = httpServer.listen(config.port, () => {
     logger.info(`Listening to port ${config.port}`);
+    startSchedulers();
   });
 });
 

@@ -126,6 +126,19 @@ model Setting {
   value String
 }
 
+model WeeklyWinnerReport {
+  id            Int          @id @default(autoincrement())
+  weekNumber    Int          @unique
+  periodStart   DateTime
+  periodEnd     DateTime
+  status        ReportStatus @default(PENDING)
+  sentAt        DateTime?
+  s3FileKey     String?
+  recipientList String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
 enum ExportType {
   PARTICIPANTS
   LEADERBOARD
@@ -137,6 +150,12 @@ enum JobStatus {
   PENDING
   PROCESSING
   COMPLETED
+  FAILED
+}
+
+enum ReportStatus {
+  PENDING
+  SENT
   FAILED
 }
 

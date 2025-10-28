@@ -6,7 +6,8 @@ import {
   tokenService,
   activityService,
   exportService,
-  settingService
+  settingService,
+  weeklyReportService
 } from '../services';
 import { Response } from 'express';
 import { AuthTokensResponse } from '../types/response';
@@ -217,6 +218,33 @@ const updateRegistrationSettings = catchAsync(async (req, res) => {
     .send({ message: 'Registration settings updated successfully', settings });
 });
 
+const getWeeklyReportHistory = catchAsync(async (req, res) => {
+  const history = await weeklyReportService.getReportHistory();
+  res.status(httpStatus.OK).send({
+    message: 'Weekly report history retrieved successfully',
+    data: history
+  });
+});
+
+const getWinnerRecipients = catchAsync(async (req, res) => {
+  const emails = await settingService.getWinnerEmailRecipients();
+  res.status(httpStatus.OK).send({ emails });
+});
+
+const updateWinnerRecipients = catchAsync(async (req, res) => {
+  const { emails } = req.body;
+  await settingService.updateWinnerEmailRecipients(emails);
+  res.status(httpStatus.OK).send({ message: 'Winner email recipients updated successfully.' });
+});
+
+const getWeeklyReportSchedules = catchAsync(async (req, res) => {
+  const schedules = await weeklyReportService.getReportSchedules();
+  res.status(httpStatus.OK).send({
+    message: 'Weekly report schedules retrieved successfully',
+    data: schedules
+  });
+});
+
 export default {
   adminLogin,
   getMe,
@@ -241,5 +269,9 @@ export default {
   requestExport,
   getUserActivityHistory,
   getRegistrationSettings,
-  updateRegistrationSettings
+  updateRegistrationSettings,
+  getWeeklyReportHistory,
+  getWinnerRecipients,
+  updateWinnerRecipients,
+  getWeeklyReportSchedules
 };

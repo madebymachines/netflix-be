@@ -121,7 +121,7 @@ const createHtmlTemplate = (
 </head>
 <body width="100%" style="margin: 0; padding: 0 !important; mso-line-height-rule: exactly; background-color: #000000;">
     <span class="preheader">${preheaderText}</span>
-    
+
     <!--[if gte mso 9]>
     <v:background xmlns:v="urn:schemas-microsoft-com:vml" fill="t">
         <v:fill type="tile" src="${backgroundUrl}" color="#000000"/>
@@ -169,7 +169,7 @@ const createHtmlTemplate = (
  * @returns {Promise}
  */
 const sendEmail = async (
-  to: string,
+  to: string | string[],
   subject: string,
   htmlContent: string,
   preheaderText: string,
@@ -334,6 +334,33 @@ const sendExportReadyEmail = async (to: string, name: string, downloadUrl: strin
   await sendEmail(to, subject, content, preheaderText);
 };
 
+/**
+ * Send weekly winner report email with CSV attachment
+ * @param to - Array of recipient emails
+ * @param weekNumber - The week number for the report
+ * @param csvBuffer - The CSV file content as a Buffer
+ * @returns {Promise}
+ */
+const sendWinnerReportEmail = async (to: string[], weekNumber: number, csvBuffer: Buffer) => {
+  const subject = `Weekly Winners Report - Week ${weekNumber}`;
+  const preheaderText = `Attached is the weekly winners report for week ${weekNumber}.`;
+  const content = `
+    <p>Hello Team,</p>
+    <p>Please find the attached CSV file for the weekly winners of week ${weekNumber}.</p>
+    <p>Thank you.</p>
+  `;
+
+  const attachments = [
+    {
+      filename: `weekly_winners_week_${weekNumber}.csv`,
+      content: csvBuffer,
+      contentType: 'text/csv'
+    }
+  ];
+
+  await sendEmail(to, subject, content, preheaderText, attachments);
+};
+
 export default {
   transport,
   sendEmail,
@@ -341,5 +368,6 @@ export default {
   sendVerificationEmail,
   sendPurchaseApprovalEmail,
   sendPurchaseRejectionEmail,
-  sendExportReadyEmail
+  sendExportReadyEmail,
+  sendWinnerReportEmail
 };

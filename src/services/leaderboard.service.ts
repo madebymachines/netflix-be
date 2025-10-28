@@ -15,22 +15,37 @@ const getPublicLeaderboard = async (options: {
   page?: number;
   limit?: number;
   fetchAll?: boolean;
+  startDate?: Date;
+  endDate?: Date;
 }) => {
-  const { timespan = 'alltime', region, page = 1, limit = 20, fetchAll = false } = options;
+  const {
+    timespan = 'alltime',
+    region,
+    page = 1,
+    limit = 20,
+    fetchAll = false,
+    startDate,
+    endDate
+  } = options;
   const skip = fetchAll ? 0 : (page - 1) * limit;
   const take = fetchAll ? undefined : limit;
 
   if (timespan === 'weekly' || timespan === 'monthly') {
-    const startOfPeriod =
-      timespan === 'weekly'
-        ? moment().startOf('isoWeek').toDate()
-        : moment().startOf('month').toDate();
-    const endOfPeriod =
-      timespan === 'weekly' ? moment().endOf('isoWeek').toDate() : moment().endOf('month').toDate();
+    // Gunakan date range dari parameter jika ada, jika tidak, gunakan moment() untuk periode saat ini
+    const startOfPeriod = startDate
+      ? startDate
+      : timespan === 'weekly'
+      ? moment().startOf('isoWeek').toDate()
+      : moment().startOf('month').toDate();
+    const endOfPeriod = endDate
+      ? endDate
+      : timespan === 'weekly'
+      ? moment().endOf('isoWeek').toDate()
+      : moment().endOf('month').toDate();
 
     const userFilter: Prisma.UserWhereInput = {
       isBanned: false,
-      purchaseStatus: PurchaseStatus.APPROVED // <-- PERUBAHAN
+      purchaseStatus: PurchaseStatus.APPROVED
     };
     if (region) {
       userFilter.country = region;
@@ -123,7 +138,7 @@ const getPublicLeaderboard = async (options: {
 
   const userStatsFilter: Prisma.UserWhereInput = {
     isBanned: false,
-    purchaseStatus: PurchaseStatus.APPROVED // <-- PERUBAHAN
+    purchaseStatus: PurchaseStatus.APPROVED
   };
   if (region) {
     userStatsFilter.country = region;

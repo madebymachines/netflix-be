@@ -25,8 +25,15 @@ const updateRegistrationSettings = {
   })
 };
 
+const updateWinnerRecipients = {
+  body: Joi.object().keys({
+    emails: Joi.array().items(Joi.string().email().lowercase()).required()
+  })
+};
+
 export default {
   adminLogin,
   createAdmin,
-  updateRegistrationSettings
+  updateRegistrationSettings,
+  updateWinnerRecipients
 };

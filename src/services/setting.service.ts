@@ -33,7 +33,25 @@ const updateRegistrationSettings = async (
   return { isRegistrationOpen, registrationLimit };
 };
 
+const getWinnerEmailRecipients = async (): Promise<string[]> => {
+  const setting = await getSetting('WINNERS_EMAIL_RECIPIENTS');
+  if (!setting || !setting.value) {
+    return [];
+  }
+  return setting.value
+    .split(',')
+    .map((email) => email.trim())
+    .filter(Boolean);
+};
+
+const updateWinnerEmailRecipients = async (emails: string[]): Promise<void> => {
+  const value = emails.join(',');
+  await upsertSetting('WINNERS_EMAIL_RECIPIENTS', value);
+};
+
 export default {
   getRegistrationSettings,
-  updateRegistrationSettings
+  updateRegistrationSettings,
+  getWinnerEmailRecipients,
+  updateWinnerEmailRecipients
 };

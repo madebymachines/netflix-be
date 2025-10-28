@@ -12,4 +12,5 @@ export { default as socketService } from './socket.service';
 // Impor dan ekspor sebagai objek bernama 'voucherService'
 export { default as voucherService } from './voucher.service';
 export { default as settingService } from './setting.service';
+export { default as weeklyReportService } from './weeklyReport.service';
 // --- PERUBAHAN SELESAI ---

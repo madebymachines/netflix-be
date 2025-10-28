@@ -119,11 +119,27 @@ router
 // Registration Settings
 router
   .route('/settings/registration')
-  .get(auth('manageUsers'), adminController.getRegistrationSettings)
+  .get(auth('getUsers'), adminController.getRegistrationSettings)
   .put(
     auth('manageUsers'),
     validate(adminValidation.updateRegistrationSettings),
     adminController.updateRegistrationSettings
   );
+
+// Weekly Report Settings & History
+router
+  .route('/settings/winner-recipients')
+  .get(auth('manageUsers'), adminController.getWinnerRecipients)
+  .put(
+    auth('manageUsers'),
+    validate(adminValidation.updateWinnerRecipients),
+    adminController.updateWinnerRecipients
+  );
+
+router
+  .route('/reports/weekly-winners')
+  .get(auth('getUsers'), adminController.getWeeklyReportHistory);
+
+router.route('/reports/schedules').get(auth('getUsers'), adminController.getWeeklyReportSchedules);
 
 export default router;

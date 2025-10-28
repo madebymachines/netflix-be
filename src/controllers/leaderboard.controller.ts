@@ -38,7 +38,7 @@ async function signS3IfNeeded(
 }
 
 const getLeaderboard = catchAsync(async (req, res) => {
-  const options = pick(req.query, ['timespan', 'region', 'page', 'limit']);
+  const options = pick(req.query, ['timespan', 'region', 'page', 'limit', 'startDate', 'endDate']);
   const result = await leaderboardService.getPublicLeaderboard(options);
   const leaderboard = await Promise.all(
     (result.leaderboard ?? []).map(async (row: any) => ({

@@ -36,7 +36,10 @@ const envVarsSchema = Joi.object()
     AWS_S3_REGION: Joi.string().required().description('AWS S3 region'),
     AWS_ACCESS_KEY_ID: Joi.string().required().description('AWS access key ID'),
     AWS_SECRET_ACCESS_KEY: Joi.string().required().description('AWS secret access key'),
-    AWS_S3_BASE_FOLDER: Joi.string().default('').description('Base folder in S3 bucket')
+    AWS_S3_BASE_FOLDER: Joi.string().default('').description('Base folder in S3 bucket'),
+    AWS_S3_REPORT_FOLDER: Joi.string()
+      .default('weekly-winner-reports')
+      .description('Folder for weekly reports in S3')
   })
   .unknown();
 
@@ -94,7 +97,8 @@ export default {
       region: envVars.AWS_S3_REGION,
       accessKeyId: envVars.AWS_ACCESS_KEY_ID,
       secretAccessKey: envVars.AWS_SECRET_ACCESS_KEY,
-      baseFolder: envVars.AWS_S3_BASE_FOLDER
+      baseFolder: envVars.AWS_S3_BASE_FOLDER,
+      reportFolder: envVars.AWS_S3_REPORT_FOLDER
     }
   }
 };
