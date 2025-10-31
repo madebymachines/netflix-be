@@ -146,7 +146,7 @@ const processAndSendWeeklyReport = async (): Promise<void> => {
 const getReportHistory = async () => {
   const reports = await prisma.weeklyWinnerReport.findMany({
     orderBy: {
-      weekNumber: 'desc'
+      weekNumber: 'asc'
     }
   });
 
